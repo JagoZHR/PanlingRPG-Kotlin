@@ -15,9 +15,13 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
     // [关键修复] Sonatype 快照库，用于解析 x.x.x-SNAPSHOT 版本的依赖
     maven("https://oss.sonatype.org/content/groups/public/")
+    maven("https://maven.enginehub.org/repo/")
 }
 
 dependencies {
+    implementation(platform("com.intellectualsites.bom:bom-newest:1.55")) // Ref: https://github.com/IntellectualSites/bom
+    compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Core")
+    compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Bukkit") { isTransitive = false }
     paperweight.paperDevBundle("1.21.10-R0.1-SNAPSHOT")
     implementation(kotlin("stdlib"))
 }

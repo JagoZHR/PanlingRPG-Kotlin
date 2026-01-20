@@ -5,7 +5,12 @@ api-version: 1.21
 description: A RPG plugin built with Kotlin and NMS.
 author: Panling
 
-# 这一部分必须有！否则 getCommand 永远返回 null
+# [新增] 声明依赖
+# 这告诉 Bukkit：启动我之前，先启动 FastAsyncWorldEdit
+# 如果没装 FAWE，你的插件会直接报错提示“缺前置”，而不是等到跑代码时才崩
+depend:
+  - FastAsyncWorldEdit
+
 commands:
   nmstest:
     description: 验证 NMS 环境
@@ -14,4 +19,3 @@ commands:
     description: 测试虚空副本创建性能
     usage: /dungeontest
     permission: panling.admin
-    permission-message: §c你没有权限
