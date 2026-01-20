@@ -1,0 +1,17 @@
+name: PanlingRPG
+version: 1.0.0
+main: com.panling.basic.PanlingBasic
+api-version: 1.21
+description: A RPG plugin built with Kotlin and NMS.
+author: Panling
+
+# 这一部分必须有！否则 getCommand 永远返回 null
+commands:
+  nmstest:
+    description: 验证 NMS 环境
+    usage: /nmstest
+  dungeontest:
+    description: 测试虚空副本创建性能
+    usage: /dungeontest
+    permission: panling.admin
+    permission-message: §c你没有权限
