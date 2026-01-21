@@ -13,6 +13,7 @@ import org.bukkit.attribute.AttributeModifier
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemFlag
 import org.bukkit.inventory.ItemStack
+import org.bukkit.persistence.PersistentDataContainer
 import org.bukkit.persistence.PersistentDataType
 
 object LoreManager {
@@ -29,7 +30,7 @@ object LoreManager {
     )
 
     // 获取插件实例 (懒加载或直接获取)
-    private val plugin by lazy { PanlingBasic.getInstance() }
+    private val plugin by lazy { PanlingBasic.instance }
 
     fun updateItemLore(item: ItemStack?, player: Player?) {
         if (item == null || !item.hasItemMeta()) return
@@ -134,7 +135,7 @@ object LoreManager {
                 var atkSpeed = 0.0
                 if (meta.hasAttributeModifiers()) {
                     // 使用 GENERIC_ATTACK_SPEED (1.21+)
-                    val mods = meta.getAttributeModifiers(Attribute.GENERIC_ATTACK_SPEED)
+                    val mods = meta.getAttributeModifiers(Attribute.ATTACK_SPEED)
                     if (mods != null && mods.isNotEmpty()) {
                         for (mod in mods) {
                             if (mod.operation == AttributeModifier.Operation.ADD_NUMBER) {

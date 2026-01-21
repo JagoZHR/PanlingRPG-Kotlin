@@ -1,0 +1,290 @@
+block_triggers:
+  world,1364,78,14:
+  - RACE:DEMON
+  - TELEPORT:job_select
+  world,1366,77,70:
+  - RACE:WAR_GOD
+  - TELEPORT:job_select
+  world,1366,77,13:
+  - RACE:DEMON
+  - TELEPORT:job_select
+  world,1277,77,105:
+  - RACE:IMMORTAL
+  - TELEPORT:job_select
+  world,1283,78,-8:
+  - RACE:HUMAN
+  - TELEPORT:job_select
+  world,1283,79,-8:
+  - RACE:HUMAN
+  - TELEPORT:job_select
+  world,1233,76,42:
+  - RACE:DIVINE
+  - TELEPORT:job_select
+waypoints:
+  job_select:
+    world: world
+    x: 1315.2829885100844
+    y: 63.0
+    z: 42.359201483916394
+    yaw: -89.93417
+    pitch: 40.716675
+  class_mage:
+    world: world
+    x: 1240.5
+    y: 28.0
+    z: -340.5
+    yaw: 90.0
+    pitch: 0.0
+  class_archer:
+    world: world
+    x: 1224.5085779572785
+    y: 28.0
+    z: -326.6192939583696
+    yaw: 90.0921
+    pitch: 1.4738963
+  class_warrior:
+    world: world
+    x: 1224.3735176882399
+    y: 28.0
+    z: -312.5591184084274
+    yaw: 90.644806
+    pitch: 0.27634913
+entity_triggers:
+  2cc520d8-6f6e-4bb4-957c-089db94798a9:
+  - CLASS:MAGE
+  - TELEPORT:class_mage
+  15907e79-5139-46a5-abd5-1b233bf8a14b:
+  - CLASS:MAGE
+  867f147b-38d4-4746-84d6-3951ef7b4c98:
+  - CLASS:ARCHER
+  6f28c9d9-f31f-4038-b5bd-2eef098478ae:
+  - CLASS:ARCHER
+  - TELEPORT:class_archer
+  04472677-901f-4bf0-9a44-3406a64e61de:
+  - CLASS:WARRIOR
+  a061376a-5b22-4f6c-b3e5-d82c0c7aacff:
+  - CLASS:WARRIOR
+  - TELEPORT:class_warrior
+managed_entities:
+  2cc520d8-6f6e-4bb4-957c-089db94798a9:
+    type: INTERACTION
+    world: world
+    x: 1319.5574635433356
+    y: 63.0
+    z: 44.49028062338785
+    yaw: 0.0
+    pitch: 0.0
+    meta:
+      width: '1.0'
+      height: '2.0'
+      silent: false
+      glowing: false
+      gravity: true
+  15907e79-5139-46a5-abd5-1b233bf8a14b:
+    type: ARMOR_STAND
+    world: world
+    x: 1319.5
+    y: 63.0
+    z: 44.5
+    yaw: 90.0
+    pitch: 0.0
+    meta:
+      small: 'false'
+      silent: false
+      eq_boots:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:chainmail_boots
+        count: 1
+        schema_version: 1
+      pose_rleg: 0.017453292519943295,0.0,0.017453292519943295
+      eq_offhand:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:carrot_on_a_stick
+        count: 1
+        components:
+          minecraft:custom_model_data: '{floats:[1.0f]}'
+        schema_version: 1
+      as_arms: true
+      eq_head:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:chainmail_helmet
+        count: 1
+        schema_version: 1
+      invisible: 'false'
+      pose_head: 0.0,0.0,0.0
+      as_baseplate: false
+      eq_legs:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:chainmail_leggings
+        count: 1
+        schema_version: 1
+      as_invisible: false
+      pose_rarm: -0.2617993877991494,0.0,0.17453292519943295
+      pose_body: 0.0,0.0,0.0
+      glowing: false
+      marker: 'false'
+      gravity: false
+      as_marker: false
+      eq_hand:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:flint
+        count: 1
+        schema_version: 1
+      pose_lleg: -0.017453292519943295,0.0,-0.017453292519943295
+      as_small: false
+      pose_larm: -0.17453292519943295,0.0,-0.17453292519943295
+      eq_chest:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:chainmail_chestplate
+        count: 1
+        schema_version: 1
+  867f147b-38d4-4746-84d6-3951ef7b4c98:
+    type: ARMOR_STAND
+    world: world
+    x: 1319.5
+    y: 63.0
+    z: 42.5
+    yaw: 90.0
+    pitch: 0.0
+    meta:
+      silent: false
+      eq_boots:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:golden_boots
+        count: 1
+        schema_version: 1
+      pose_rleg: 0.017453292519943295,0.0,0.017453292519943295
+      eq_offhand:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        schema_version: 1
+        id: minecraft:air
+      as_arms: true
+      eq_head:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:golden_helmet
+        count: 1
+        schema_version: 1
+      pose_head: 0.0,0.0,0.0
+      as_baseplate: false
+      eq_legs:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:golden_leggings
+        count: 1
+        schema_version: 1
+      as_invisible: false
+      pose_rarm: -0.2617993877991494,0.0,0.17453292519943295
+      pose_body: 0.0,0.0,0.0
+      glowing: false
+      gravity: true
+      as_marker: false
+      eq_hand:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:bow
+        count: 1
+        schema_version: 1
+      pose_lleg: -0.017453292519943295,0.0,-0.017453292519943295
+      as_small: false
+      pose_larm: -0.17453292519943295,0.0,-0.17453292519943295
+      eq_chest:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:golden_chestplate
+        count: 1
+        schema_version: 1
+  6f28c9d9-f31f-4038-b5bd-2eef098478ae:
+    type: INTERACTION
+    world: world
+    x: 1319.699999988079
+    y: 63.0
+    z: 42.49156443690536
+    yaw: 0.0
+    pitch: 0.0
+    meta:
+      silent: false
+      glowing: false
+      gravity: true
+      width: '1.0'
+      height: '2.0'
+  04472677-901f-4bf0-9a44-3406a64e61de:
+    type: ARMOR_STAND
+    world: world
+    x: 1319.5
+    y: 63.0
+    z: 40.5
+    yaw: 90.0
+    pitch: 0.0
+    meta:
+      silent: false
+      eq_boots:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:iron_boots
+        count: 1
+        schema_version: 1
+      pose_rleg: 0.017453292519943295,0.0,0.017453292519943295
+      eq_offhand:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        schema_version: 1
+        id: minecraft:air
+      as_arms: true
+      eq_head:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:iron_helmet
+        count: 1
+        schema_version: 1
+      pose_head: 0.0,0.0,0.0
+      as_baseplate: false
+      eq_legs:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:iron_leggings
+        count: 1
+        schema_version: 1
+      as_invisible: false
+      pose_rarm: -0.2617993877991494,0.0,0.17453292519943295
+      pose_body: 0.0,0.0,0.0
+      glowing: false
+      gravity: true
+      as_marker: false
+      eq_hand:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:golden_sword
+        count: 1
+        schema_version: 1
+      pose_lleg: -0.017453292519943295,0.0,-0.017453292519943295
+      as_small: false
+      pose_larm: -0.17453292519943295,0.0,-0.17453292519943295
+      eq_chest:
+        ==: org.bukkit.inventory.ItemStack
+        DataVersion: 4556
+        id: minecraft:iron_chestplate
+        count: 1
+        schema_version: 1
+  a061376a-5b22-4f6c-b3e5-d82c0c7aacff:
+    type: INTERACTION
+    world: world
+    x: 1319.699999988079
+    y: 63.0
+    z: 40.49348731289202
+    yaw: 0.0
+    pitch: 0.0
+    meta:
+      silent: false
+      glowing: false
+      gravity: true
+      width: '1.0'
+      height: '2.0'

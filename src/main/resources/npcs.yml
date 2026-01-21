@@ -1,0 +1,14 @@
+npc_chief:
+  name: "§e老村长"
+  type: VILLAGER
+  location: world,100.5,64,100.5,0,0
+  dialog: "年轻人，村子周围最近不太平，你能帮帮我们吗？"
+  # [NEW] 额外数据
+  data:
+    shop_id: "grocery_store"  # 关联杂货店ID
+
+npc_guard:
+  name: "§b王城守卫"
+  type: IRON_GOLEM
+  location: world,120.5,64,100.5,0,0
+  dialog: "站住！只有强者才能通过这里。"

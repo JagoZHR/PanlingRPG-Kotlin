@@ -119,8 +119,8 @@ class MobManager(
 
     private fun registerDefaultSkills() {
         // Kotlin Lambda 简化
-        skillRegistry.register("MESSAGE") { MessageSkill() }
-        skillRegistry.register("LEAP") { LeapSkill() }
+        skillRegistry.register("MESSAGE") { MessageSkill(it) }
+        skillRegistry.register("LEAP") { LeapSkill(it) }
     }
 
     // ==========================================================
@@ -257,12 +257,15 @@ class MobManager(
 
         template.equipment?.let { eq ->
             entity.equipment?.let { ee ->
-                ee.itemInMainHand = createVisualItem(eq.mainHand)
-                ee.itemInOffHand = createVisualItem(eq.offHand)
-                ee.helmet = createVisualItem(eq.helmet)
-                ee.chestplate = createVisualItem(eq.chest)
-                ee.leggings = createVisualItem(eq.leggings)
-                ee.boots = createVisualItem(eq.boots)
+                // 使用显式 Setter 方法，并处理空值 (如果是 null 则设为 AIR)
+                ee.setItemInMainHand(createVisualItem(eq.mainHand) ?: ItemStack(Material.AIR))
+                ee.setItemInOffHand(createVisualItem(eq.offHand) ?: ItemStack(Material.AIR))
+
+                ee.helmet = createVisualItem(eq.helmet) ?: ItemStack(Material.AIR)
+                ee.chestplate = createVisualItem(eq.chest) ?: ItemStack(Material.AIR)
+                ee.leggings = createVisualItem(eq.leggings) ?: ItemStack(Material.AIR)
+                ee.boots = createVisualItem(eq.boots) ?: ItemStack(Material.AIR)
+
                 EquipmentSlot.values().forEach { ee.setDropChance(it, 0f) }
             }
         }

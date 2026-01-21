@@ -6,11 +6,15 @@ import java.util.EnumMap
 
 /**
  * 核心数据键注册表 (Kotlin重构版)
- * 统一管理所有的 NamespacedKey，不再需要手动调用 load()
+ *
+ * 修复说明：
+ * 1. 添加了 load() 方法以兼容主类调用，并强制触发 object 的初始化。
+ * 2. 保持了原有的静态数据结构。
  */
 object BasicKeys {
 
-    private val plugin = PanlingBasic.getInstance()
+    // 获取插件实例 (注意：主类必须先执行 instance = this，否则这里会报错)
+    private val plugin = PanlingBasic.instance
 
     // --- 核心数据结构 ---
     val ALL_STATS = ArrayList<NamespacedKey>()
@@ -25,6 +29,17 @@ object BasicKeys {
     val TRIGGER_LORE_KEYS = EnumMap<SkillTrigger, NamespacedKey>(SkillTrigger::class.java)
     val TRIGGER_LORE_OFFENSE_KEYS = EnumMap<SkillTrigger, NamespacedKey>(SkillTrigger::class.java)
     val TRIGGER_LORE_SUPPORT_KEYS = EnumMap<SkillTrigger, NamespacedKey>(SkillTrigger::class.java)
+
+    /**
+     * [修复] 兼容方法
+     * 虽然 Kotlin object 会自动初始化，但显式调用此方法有以下好处：
+     * 1. 兼容 PanlingBasic 中的 BasicKeys.load(this) 调用。
+     * 2. 确保在 onEnable 阶段就立即完成所有 Key 的注册（Eager Loading），而不是等到第一次使用时。
+     */
+    fun load(plugin: PanlingBasic) {
+        // 方法体为空即可。
+        // 调用此方法会触发 BasicKeys 类的加载，进而执行 init 块和属性初始化。
+    }
 
     // --- 初始化块：自动填充 Trigger Keys ---
     init {

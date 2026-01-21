@@ -29,10 +29,10 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
     }
 
     // 将 getPlayerDataManager() 简化为属性
-    private val playerDataManager: PlayerDataManager
+    val playerDataManager: PlayerDataManager
         get() = plugin.playerDataManager
 
-    private val itemManager: ItemManager
+    val itemManager: ItemManager
         get() = plugin.itemManager
 
     // [API] 玩家解锁配方

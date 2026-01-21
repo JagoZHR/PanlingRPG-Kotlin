@@ -5,7 +5,6 @@ import com.panling.basic.api.BasicKeys
 import com.panling.basic.api.Reloadable
 import com.panling.basic.dungeon.nms.VolatileWorldFactory
 import com.panling.basic.dungeon.phase.AbstractDungeonPhase
-import com.panling.basic.dungeon.phase.DungeonPhaseRegistry
 import com.sk89q.worldedit.math.BlockVector3
 import org.bukkit.Bukkit
 import org.bukkit.Location

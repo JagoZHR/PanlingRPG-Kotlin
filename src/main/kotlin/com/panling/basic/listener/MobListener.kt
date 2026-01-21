@@ -23,7 +23,7 @@ import java.util.*
 class MobListener(private val mobManager: MobManager) : Listener {
 
     // 获取插件实例 (用于 hideEntity)
-    private val plugin = PanlingBasic.getInstance()
+    private val plugin = PanlingBasic.instance
 
     // ==================================================
     // 1. [NEW] 私有怪机制完善

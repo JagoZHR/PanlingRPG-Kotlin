@@ -1,0 +1,1909 @@
+# ==============================================================================
+# PanlingBasic 物品配置文件 (v2.0 Updated)
+# ==============================================================================
+# [基础属性] (数值支持小数):
+# phys: 物理伤害 | skill: 法术强度 | def: 物理防御 | mdef: 法术防御
+# hp: 额外生命 | speed: 移动速度(0.1=10%) | kb: 击退抗性(1.0=100%)
+# crit: 暴击率 | crit_dmg: 爆伤 | pen: 物穿 | mpen: 法穿 | lifesteal: 吸血
+# cdr: 冷却缩减 | conserve: 元素保留率 (法师专用) | range: 技能/攻击范围
+# arrow_velocity: <Double> (箭矢流速修正, 默认1.0。影响飞行速度与最终伤害)
+# ------------------------------------------------------------------------------
+# [百分比属性] (属性名 + _pct):
+# phys_pct, skill_pct, hp_pct, def_pct, pen_pct, mpen_pct, critdmg_pct...
+# ------------------------------------------------------------------------------
+# [经济与资源]:
+# money_value: <Double> (物品价值, 用于出售或银行存入)
+# element_value: <Int> (物品蕴含的元素点数, 用于精炼)
+# skill_cost: <Int> (释放技能消耗的灵力/元素点数)
+# ------------------------------------------------------------------------------
+# [核心配置]:
+# type: WEAPON | ARMOR | ACCESSORY | ELEMENT | FABAO | MATERIAL
+# class: WARRIOR | ARCHER | MAGE | NONE (职业限制)
+# sub_class: <Type> (武器流派, 决定特殊机制)
+#   战士流派: PO_JUN (破军:低血高攻/吸血) | GOLDEN_BELL (金钟:防御叠加/RPG横扫)
+#   射手流派: SNIPER (狙击:速度加成/无视击退) | RANGER (游侠:快速装填/穿透附魔)
+# rarity: COMMON | UNCOMMON | RARE | EPIC | LEGENDARY | MYTHIC | ETERNAL
+# set: <SetID> (所属套装ID, 对应 sets.yml)
+# fabao_slot: <1-9> (法宝指定快捷栏位, 41=副手)
+# attack_speed: <Double> (攻击速度: 4.0=无CD, 1.6=剑, 1.0=斧)
+# level: <Int> (等级限制)
+# ------------------------------------------------------------------------------
+# [技能与触发]:
+# ability: <SkillID> (主动技能ID, 需在 skills 文件夹注册)
+# passive: <PassiveID> (常驻被动)
+# passive_attack: <PassiveID> (攻击触发被动) | passive_hit: <PassiveID> (受击触发被动)
+# cooldown: <Seconds> (冷却时间, 支持小数)
+# trigger: <Type> (主动技能触发方式)
+#   可选值: RIGHT_CLICK, LEFT_CLICK, SHIFT_RIGHT, SHIFT_LEFT
+# ------------------------------------------------------------------------------
+# [描述与文本] (支持颜色代码 §):
+# description: (通用背景故事/简介, 支持多行 list 或 ||| 分割)
+# skill_lore: (通用技能说明, 显示在技能栏下方)
+# skill_lore_support: (仅限阵法师[辅助]形态显示的技能说明)
+# skill_lore_offense: (仅限阵法师[杀伐]形态显示的技能说明)
+# ------------------------------------------------------------------------------
+# [视觉模型] (1.21+ 新特性):
+# item_model: "namespace:id" (物品模型, 改变拿在手里的样子)
+# equippable: (可装备组件, 定义物品穿戴行为)
+#   slot: HEAD | CHEST | LEGS | FEET | BODY
+#   model: "namespace:id" (穿在身上的材质模型)
+#   camera_overlay: "namespace:id" (第一人称遮罩)
+#   allowed_entities: [PLAYER, ZOMBIE...]
+# ------------------------------------------------------------------------------
+# [旧版材质]:
+# model_data: <Int> (兼容 OptiFine/CIT 的 CustomModelData)
+# ==============================================================================
+
+# ==============================================================================
+# 战士武器进化路线 (Warrior Weapons)
+# ------------------------------------------------------------------------------
+# 格式修正：description (背景) 与 skill_lore (技能/被动) 分离
+# ==============================================================================
+
+# --- T1 通用 ---
+training_sword:
+  name: "§f练习木剑"
+  material: WOODEN_SWORD
+  type: WEAPON
+  class: WARRIOR
+  rarity: BROKEN
+  level: 0
+  phys: 6.0
+  lifesteal: 0.01
+  attack_speed: 1.6
+  item_model: "panling:weapon/warrior/training_sword"
+  description:
+    - "§7§o一把稍微加固过的木剑，"
+    - "§7§o适合新手找找手感。"
+  skill_lore:
+    - "§a[基础] §7提供微量的生命回复保障。"
+
+# --- T2 ---
+kaishan_saber:
+  name: "§a开山刀[破军]"
+  material: IRON_SWORD
+  type: WEAPON
+  class: WARRIOR
+  sub_class: PO_JUN
+  rarity: COMMON
+  level: 10
+  phys: 12.0
+  lifesteal: 0.03
+  attack_speed: 1.8
+  item_model: "panling:weapon/warrior/kaishan_saber"
+  description:
+    - "§7§o有一点生锈的厚重砍刀，"
+    - "§7§o虽然名为开山，实为杀人。"
+  skill_lore:
+    - "§c[被动] 嗜血"
+    - "§7攻击时根据伤害回复少量生命。"
+
+bronze_sword:
+  name: "§a青铜剑[金钟]"
+  material: IRON_SWORD
+  type: WEAPON
+  class: WARRIOR
+  sub_class: GOLDEN_BELL
+  rarity: COMMON
+  level: 10
+  phys: 9.0
+  def: 10.0
+  hp_pct: 0.2
+  attack_speed: 1.6
+  item_model: "panling:weapon/warrior/bronze_sword"
+  description:
+    - "§7§o使用青铜铸造的古朴长剑，"
+    - "§7§o宽阔的剑身适合招架防御。"
+  skill_lore:
+    - "§e[被动] 招架"
+    - "§7提供基础的物理防御力。"
+
+# --- T3 ---
+red_copper_sword:
+  name: "§9赤铜剑[破军]"
+  material: GOLDEN_SWORD
+  type: WEAPON
+  class: WARRIOR
+  sub_class: PO_JUN
+  rarity: UNCOMMON
+  level: 20
+  phys: 22.0
+  lifesteal: 0.05
+  crit: 0.1
+  attack_speed: 1.6
+  item_model: "panling:weapon/warrior/red_copper_sword"
+  description:
+    - "§7§o赤铜打造，通体火红，"
+    - "§7§o挥舞时如烈火燎原。"
+  skill_lore:
+    - "§c[特性] 狂热"
+    - "§7略微提升暴击几率与吸血效率。"
+
+xuantie_heavy_sword:
+  name: "§9玄铁重剑[金钟]"
+  material: IRON_SWORD
+  type: WEAPON
+  class: WARRIOR
+  sub_class: GOLDEN_BELL
+  rarity: UNCOMMON
+  level: 20
+  phys: 20.0
+  def: 20.0
+  hp_pct: 0.3
+  attack_speed: 1.0
+  passive_attack: PASSIVE_TAUNT_MINOR
+  item_model: "panling:weapon/warrior/xuantie_heavy_sword"
+  description:
+    - "§7§o重剑无锋，大巧不工。"
+  skill_lore:
+    - "§e[被动] 震慑"
+    - "§7攻击时产生额外仇恨，"
+    - "§7强制怪物攻击自己。"
+
+# --- T4 ---
+sky_breaker_axe:
+  name: "§d破空斧[破军]"
+  material: IRON_AXE
+  type: WEAPON
+  class: WARRIOR
+  sub_class: PO_JUN
+  rarity: RARE
+  level: 30
+  phys: 38.0
+  lifesteal: 0.06
+  crit_dmg: 0.3
+  attack_speed: 1.4
+  passive_attack: PASSIVE_EXECUTE
+  item_model: "panling:weapon/warrior/sky_breaker_axe"
+  description:
+    - "§7§o斧刃极薄，挥舞时伴有破空之声。"
+  skill_lore:
+    - "§c[被动] 处决"
+    - "§7对生命值低于30%的敌人，"
+    - "§7造成的伤害大幅提升。"
+
+taiji_sword:
+  name: "§d太极剑[金钟]"
+  material: DIAMOND_SWORD
+  type: WEAPON
+  class: WARRIOR
+  sub_class: GOLDEN_BELL
+  rarity: RARE
+  level: 30
+  phys: 28.0
+  def: 23.0
+  hp_pct: 0.15
+  passive_hit: PASSIVE_THORNS_20
+  attack_speed: 1.2
+  item_model: "panling:weapon/warrior/taiji_sword"
+  description:
+    - "§7§o以柔克刚，借力打力，"
+    - "§7§o剑身刻有阴阳鱼图案。"
+  skill_lore:
+    - "§e[被动] 反震"
+    - "§7受到攻击时，将20%伤害"
+    - "§7以真实伤害反弹给攻击者。"
+
+# --- T5 ---
+sanbao_jade_ruyi:
+  name: "§e三宝玉如意[破军]"
+  material: NETHERITE_SWORD
+  type: WEAPON
+  class: WARRIOR
+  sub_class: PO_JUN
+  rarity: EPIC
+  level: 40
+  phys: 60.0
+  lifesteal: 0.08
+  pen: 13.0
+  attack_speed: 1.4
+  passive_attack: PASSIVE_STACK_LIFESTEAL
+  item_model: "panling:weapon/warrior/sanbao_jade_ruyi"
+  description:
+    - "§7§o看似温润的玉如意，实则杀机暗藏。"
+    - "§7§o原为仙家法宝，后染血化为魔兵。"
+  skill_lore:
+    - "§e[机制] 杀意波动"
+    - "§7连续攻击命中敌人时，"
+    - "§7叠加高额吸血效果，越战越勇。"
+
+kunlun_flying_sword:
+  name: "§e昆仑飞仙剑[金钟]"
+  material: DIAMOND_SWORD
+  type: WEAPON
+  class: WARRIOR
+  sub_class: GOLDEN_BELL
+  rarity: EPIC
+  level: 40
+  phys: 40.0
+  def: 30.0
+  hp_pct: 0.2
+  attack_speed: 1.2
+  passive: PASSIVE_STAND_STILL_DEF
+  item_model: "panling:weapon/warrior/kunlun_flying_sword"
+  description:
+    - "§7§o昆仑御剑术的核心法剑，"
+    - "§7§o专修护体剑气。"
+  skill_lore:
+    - "§e[机制] 不动如山"
+    - "§7站立不动2秒后，剑气护体，"
+    - "§7获得大幅伤害减免。"
+
+
+# ==============================================================================
+# 弓箭手武器进化路线 (Archer Weapons)
+# ==============================================================================
+
+# --- T1 通用 ---
+short_bow:
+  name: "§f短木弓"
+  material: BOW
+  type: WEAPON
+  class: ARCHER
+  rarity: BROKEN
+  level: 0
+  phys: 4.0
+  #item_model: "panling:weapon/short_bow"
+  description:
+    - "§7§o猎户家常见的短弓，"
+    - "§7§o射程有限但十分轻便。"
+  skill_lore:
+    - "§a[基础] §7适合中近距离射击。"
+
+# --- T2 ---
+bronze_bow:
+  name: "§a青铜弓[狙击]"
+  material: BOW
+  type: WEAPON
+  class: ARCHER
+  sub_class: SNIPER
+  rarity: COMMON
+  level: 10
+  phys: 8.0
+  pen: 4.0
+  kb: 0.2
+  arrow_velocity: 1.2
+  item_model: "panling:weapon/archer/bronze_bow"
+  description:
+    - "§7§o青铜铸造的硬弓，"
+    - "§7§o拉开它需要一定的臂力。"
+  skill_lore:
+    - "§a[特性] 强击"
+    - "§7蓄力满后，伤害微量提升"
+    - "§7并造成击退。"
+
+red_feather_crossbow:
+  name: "§a红翎弩[游侠]"
+  material: CROSSBOW
+  type: WEAPON
+  class: ARCHER
+  sub_class: RANGER
+  rarity: COMMON
+  level: 10
+  phys: 5.0
+  speed: 0.1
+  item_model: "panling:weapon/archer/red_feather_crossbow"
+  description:
+    - "§7§o装饰着红翎的轻弩，"
+    - "§7§o便携灵活，易于操作。"
+  skill_lore:
+    - "§a[特性] 轻盈"
+    - "§7移动速度小幅提升。"
+
+# --- T3 ---
+flame_iron_bow:
+  name: "§9焰铁弓[狙击]"
+  material: BOW
+  type: WEAPON
+  class: ARCHER
+  sub_class: SNIPER
+  rarity: UNCOMMON
+  level: 20
+  phys: 15.0
+  pen: 8.0
+  arrow_velocity: 1.3
+  item_model: "panling:weapon/archer/flame_iron_bow"
+  description:
+    - "§7§o通体赤红的金属战弓，"
+    - "§7§o射出的箭矢仿佛带有热浪。"
+  skill_lore:
+    - "§9[特性] 穿透"
+    - "§7箭矢飞行速度与穿透力提升。"
+
+wind_chaser_crossbow:
+  name: "§9逐风连弩[游侠]"
+  material: CROSSBOW
+  type: WEAPON
+  class: ARCHER
+  sub_class: RANGER
+  rarity: UNCOMMON
+  level: 20
+  phys: 9.0
+  crit: 0.1
+  passive_attack: PASSIVE_STACK_SPEED
+  item_model: "panling:weapon/archer/wind_chaser_crossbow"
+  description:
+    - "§7§o为了填补火力空白而设计的连弩，"
+    - "§7§o机关运转声如风啸。"
+  skill_lore:
+    - "§9[被动] 预热"
+    - "§7连续命中敌人时，"
+    - "§7装填速度逐渐加快。"
+
+# --- T4 ---
+heavy_hammer_bow:
+  name: "§d重锤弓[狙击]"
+  material: BOW
+  type: WEAPON
+  class: ARCHER
+  sub_class: SNIPER
+  rarity: RARE
+  level: 30
+  phys: 24.0
+  pen: 10.0
+  crit: 0.1
+  crit_dmg: 0.20
+  arrow_velocity: 1.5
+  item_model: "panling:weapon/archer/heavy_hammer_bow"
+  description:
+    - "§7§o弓臂粗大如锤柄，力道惊人。"
+  skill_lore:
+    - "§d[特性] 重击"
+    - "§7满蓄力攻击造成强力击退，"
+    - "§7可打断敌人动作。"
+
+flood_dragon_crossbow:
+  name: "§d蛟龙弩[游侠]"
+  material: CROSSBOW
+  type: WEAPON
+  class: ARCHER
+  sub_class: RANGER
+  rarity: RARE
+  level: 30
+  phys: 14.0
+  passive_attack: PASSIVE_MULTI_SHOT_2
+  item_model: "panling:weapon/archer/flood_dragon_crossbow"
+  description:
+    - "§7§o弩身如蛟龙盘绕，凶猛异常。"
+  skill_lore:
+    - "§d[被动] 散射"
+    - "§7每次射击额外发射一支箭矢，"
+    - "§7造成范围打击效果。"
+
+# --- T5 ---
+beidou_god_killer:
+  name: "§e北斗灭神弓[狙击]"
+  material: BOW
+  type: WEAPON
+  class: ARCHER
+  sub_class: SNIPER
+  rarity: EPIC
+  level: 40
+  phys: 28.0
+  pen: 20.0
+  arrow_velocity: 1.7
+  passive: PASSIVE_FORCE_KB
+  item_model: "panling:weapon/archer/beidou_god_killer"
+  description:
+    - "§7§o应北斗七星之名，主宰杀伐。"
+    - "§7§o传说中曾射落星辰的神弓。"
+  skill_lore:
+    - "§e[机制] 灭神"
+    - "§7满蓄力无视抗性强制击退敌人，"
+    - "§7并无视目标50%护甲。"
+
+sun_moon_meteor:
+  name: "§e日月流星弩[游侠]"
+  material: CROSSBOW
+  type: WEAPON
+  class: ARCHER
+  sub_class: RANGER
+  rarity: EPIC
+  level: 40
+  phys: 22.0
+  speed: 0.2
+  passive_attack: PASSIVE_INFINITE_AMMO_HEAT
+  item_model: "panling:weapon/archer/sun_moon_meteor"
+  description:
+    - "§7§o箭出如流星赶月，无穷无尽。"
+  skill_lore:
+    - "§e[机制] 流星"
+    - "§7预热完成后进入极速模式，"
+    - "§7不消耗弹药且攻速达到极致。"
+
+
+# ==============================================================================
+# 阵法师法器 (Mage Weapons)
+# ------------------------------------------------------------------------------
+# 修正：定义为 WEAPON，提供属性，配合技能使用。
+# ==============================================================================
+
+# --- T3 ---
+alchemy_furnace:
+  name: "§9炼丹炉"
+  material: CAULDRON
+  type: WEAPON
+  class: MAGE
+  rarity: UNCOMMON
+  mage_weapon_type: FURNACE # 决定变体分类
+  level: 0
+  skill: 24.0
+  cdr: 0.05
+  hp: 15.0
+  mpen: 10.0
+  item_model: "panling:weapon/mage/alchemy_furnace"
+  description:
+    - "§7§o初级炼丹炉，略微提升灵力运转。"
+    - "§7§o通常背在身后或悬浮于身侧。"
+  skill_lore:
+    - "§9[被动] 丹气"
+    - "§7提供少量生命值加成。"
+
+# --- T4 ---
+soul_locking_furnace:
+  name: "§d锁魂炉"
+  material: SOUL_LANTERN
+  type: WEAPON
+  class: MAGE
+  rarity: RARE
+  mage_weapon_type: FURNACE # 决定变体分类
+  level: 30
+  skill: 40.0
+  cdr: 0.10
+  def: 15.0
+  mdef: 15.0
+  mpen: 15.0
+  item_model: "panling:weapon/mage/soul_locking_furnace"
+  description:
+    - "§7§o铭刻锁魂符文，能稳固心神，"
+    - "§7§o防止外魔入侵。"
+  skill_lore:
+    - "§d[特性] 护体"
+    - "§7提供额外的防御能力。"
+
+# --- T5 ---
+seven_evil_cauldron:
+  name: "§e七煞鼎"
+  material: HOPPER
+  type: WEAPON
+  class: MAGE
+  rarity: EPIC
+  level: 40
+  skill: 64.0
+  cdr: 0.15
+  crit: 0.1
+  mpen: 20.0
+  mage_weapon_type: FURNACE # 决定变体分类
+  item_model: "panling:weapon/mage/seven_evil_cauldron"
+  description:
+    - "§7§o汇聚七煞之气的凶器，威力绝伦。"
+    - "§7§o鼎中仿佛囚禁着无数凶魂。"
+  skill_lore:
+    - "§e[机制] 煞气化形"
+    - "§7提高造成额外伤害的概率"
+
+
+# ==============================================================================
+# 防具套装 (Armor Sets)
+# ------------------------------------------------------------------------------
+# 修正：所有防具补充 description
+# ==============================================================================
+
+# ==============================================================================
+# 战士套装 (Warrior Sets)
+# 风格：厚重、生机、防御。
+# T5 意象：苍龙 (木/鳞/生机) -> 命名为 [苍鳞] 系列
+# ==============================================================================
+
+# --- T1 [布甲] 粗麻套装 ---
+# HP加成: 0 (仅靠防御)
+novice_hemp_hood:
+  name: "§f粗麻头巾"
+  material: LEATHER_HELMET
+  type: ARMOR
+  class: WARRIOR
+  rarity: BROKEN
+  level: 0
+  def: 2.0
+  equippable:
+    slot: HEAD
+    model: "minecraft:leather"
+  description:
+    - "§7§o杂役常带的头巾。"
+
+novice_hemp_vest:
+  name: "§f粗麻背心"
+  material: LEATHER_CHESTPLATE
+  type: ARMOR
+  class: WARRIOR
+  rarity: BROKEN
+  level: 0
+  def: 4.0
+  equippable:
+    slot: CHEST
+    model: "minecraft:leather"
+  description:
+    - "§7§o勉强能遮风挡雨。"
+
+novice_hemp_pants:
+  name: "§f粗麻长裤"
+  material: LEATHER_LEGGINGS
+  type: ARMOR
+  class: WARRIOR
+  rarity: BROKEN
+  level: 0
+  def: 3.0
+  equippable:
+    slot: LEGS
+    model: "minecraft:leather"
+
+novice_hemp_shoes:
+  name: "§f粗麻布鞋"
+  material: LEATHER_BOOTS
+  type: ARMOR
+  class: WARRIOR
+  rarity: BROKEN
+  level: 0
+  def: 1.0
+  equippable:
+    slot: FEET
+    model: "minecraft:leather"
+
+# --- T2 [藤甲] 南蛮藤甲 ---
+# HP加成: 总计 +20
+rattan_helmet:
+  name: "§a桐油藤盔"
+  material: LEATHER_HELMET
+  type: ARMOR
+  class: WARRIOR
+  rarity: COMMON
+  level: 10
+  def: 5.0
+  hp: 4.0
+  equippable:
+    slot: HEAD
+    model: "minecraft:leather"
+  description:
+    - "§7§o浸泡过桐油的老藤编织而成。"
+
+rattan_chest:
+  name: "§a南蛮藤甲"
+  material: LEATHER_CHESTPLATE
+  type: ARMOR
+  class: WARRIOR
+  rarity: COMMON
+  level: 10
+  def: 10.0
+  hp: 8.0
+  kb: 0.1
+  equippable:
+    slot: CHEST
+    model: "minecraft:leather"
+  description:
+    - "§7§o坚韧轻便，遇水不沉。"
+
+rattan_leggings:
+  name: "§a藤编护腿"
+  material: LEATHER_LEGGINGS
+  type: ARMOR
+  class: WARRIOR
+  rarity: COMMON
+  level: 10
+  def: 8.0
+  hp: 5.0
+  equippable:
+    slot: LEGS
+    model: "minecraft:leather"
+
+rattan_boots:
+  name: "§a藤履"
+  material: LEATHER_BOOTS
+  type: ARMOR
+  class: WARRIOR
+  rarity: COMMON
+  level: 10
+  def: 4.0
+  hp: 3.0
+  equippable:
+    slot: FEET
+    model: "minecraft:leather"
+
+# --- T3 [金属] 黑铁玄甲 ---
+# HP加成: 总计 +45
+black_iron_helmet:
+  name: "§9玄铁盔"
+  material: IRON_HELMET
+  type: ARMOR
+  class: WARRIOR
+  rarity: UNCOMMON
+  level: 20
+  def: 10.0
+  hp: 8.0
+  equippable:
+    slot: HEAD
+    model: "minecraft:iron"
+  description:
+    - "§7§o散发着冰冷的金属光泽。"
+
+black_iron_chest:
+  name: "§9黑铁玄甲"
+  material: IRON_CHESTPLATE
+  type: ARMOR
+  class: WARRIOR
+  rarity: UNCOMMON
+  level: 20
+  def: 18.0
+  hp: 18.0
+  kb: 0.2
+  equippable:
+    slot: CHEST
+    model: "minecraft:iron"
+  description:
+    - "§7§o厚重沉稳，精锐甲士的象征。"
+
+black_iron_leggings:
+  name: "§9玄铁护膝"
+  material: IRON_LEGGINGS
+  type: ARMOR
+  class: WARRIOR
+  rarity: UNCOMMON
+  level: 20
+  def: 14.0
+  hp: 12.0
+  equippable:
+    slot: LEGS
+    model: "minecraft:iron"
+
+black_iron_boots:
+  name: "§9玄铁战靴"
+  material: IRON_BOOTS
+  type: ARMOR
+  class: WARRIOR
+  rarity: UNCOMMON
+  level: 20
+  def: 8.0
+  hp: 7.0
+  equippable:
+    slot: FEET
+    model: "minecraft:iron"
+
+# --- T4 [金属] 明光宝铠 ---
+# HP加成: 总计 +80
+mingguang_helmet:
+  name: "§d吞口兽盔"
+  material: IRON_HELMET
+  type: ARMOR
+  class: WARRIOR
+  rarity: RARE
+  level: 30
+  def: 15.0
+  hp: 15.0
+  crit: 0.02
+  passive_hit: PASSIVE_THORNS_5
+  equippable:
+    slot: HEAD
+    model: "minecraft:iron"
+  description:
+    - "§7§o护额处雕刻着猛兽吞口。"
+
+mingguang_chest:
+  name: "§d明光宝铠"
+  material: IRON_CHESTPLATE
+  type: ARMOR
+  class: WARRIOR
+  rarity: RARE
+  level: 30
+  def: 28.0
+  hp: 30.0
+  crit: 0.05
+  passive_hit: PASSIVE_THORNS_10
+  equippable:
+    slot: CHEST
+    model: "minecraft:iron"
+  description:
+    - "§7§o胸前圆镜光耀照人，"
+    - "§7§o凡间武将的巅峰护具。"
+  skill_lore:
+    - "§d[被动] 护心"
+    - "§7§o受击反弹10%伤害。"
+
+mingguang_leggings:
+  name: "§d明光裙甲"
+  material: IRON_LEGGINGS
+  type: ARMOR
+  class: WARRIOR
+  rarity: RARE
+  level: 30
+  def: 22.0
+  hp: 20.0
+  crit: 0.03
+  passive_hit: PASSIVE_THORNS_5
+  equippable:
+    slot: LEGS
+    model: "minecraft:iron"
+
+mingguang_boots:
+  name: "§d虎头战靴"
+  material: IRON_BOOTS
+  type: ARMOR
+  class: WARRIOR
+  rarity: RARE
+  level: 30
+  def: 12.0
+  hp: 15.0
+  crit: 0.02
+  equippable:
+    slot: FEET
+    model: "minecraft:iron"
+
+# ==============================================================================
+# [T5] 战士·苍鳞套装 (Warrior - Azure Dragon)
+# 意象：苍古(头)、逆鳞(胸)、蟠木(腿)、惊涛(脚)
+# ==============================================================================
+canglin_helmet:
+  name: "§e苍古龙冠"
+  material: IRON_HELMET
+  type: ARMOR
+  class: WARRIOR
+  rarity: EPIC
+  level: 40
+  def: 20.0
+  hp: 20.0
+  kb: 0.2
+  set: canglin_set
+  equippable:
+    slot: HEAD
+    model: "minecraft:iron"
+  description:
+    - "§7§o取千年神木雕刻而成，"
+    - "§7§o蕴含不朽的生机。"
+  skill_lore:
+    - "§e[套装] 乙木长生 (4件)"
+    - "§7§o大幅提升生命回复速度。"
+
+canglin_chest:
+  name: "§e逆鳞宝甲"
+  material: IRON_CHESTPLATE
+  type: ARMOR
+  class: WARRIOR
+  rarity: EPIC
+  level: 40
+  def: 35.0
+  hp: 45.0
+  kb: 0.3
+  set: canglin_set
+  equippable:
+    slot: CHEST
+    model: "minecraft:iron"
+  description:
+    - "§7§o龙之逆鳞，触之必怒。"
+    - "§7§o凡铁无法在上面留下痕迹。"
+  skill_lore:
+    - "§e[机制] 龙威"
+    - "§7§o受到攻击概率震慑周围敌人。"
+
+canglin_leggings:
+  name: "§e蟠木护腿"
+  material: IRON_LEGGINGS
+  type: ARMOR
+  class: WARRIOR
+  rarity: EPIC
+  level: 40
+  def: 28.0
+  hp: 35.0
+  kb: 0.2
+  set: canglin_set
+  equippable:
+    slot: LEGS
+    model: "minecraft:iron"
+  description:
+    - "§7§o如老树盘根，"
+    - "§7§o下盘稳固，不可撼动。"
+
+canglin_boots:
+  name: "§e惊涛战靴"
+  material: IRON_BOOTS
+  type: ARMOR
+  class: WARRIOR
+  rarity: EPIC
+  level: 40
+  def: 15.0
+  hp: 25.0
+  kb: 0.1
+  set: canglin_set
+  equippable:
+    slot: FEET
+    model: "minecraft:iron"
+  description:
+    - "§7§o龙出沧海，踏浪而行。"
+
+
+# ==============================================================================
+# 弓手套装 (Archer Sets)
+# 风格：灵动、火、皮甲与轻甲。
+# T5 意象：朱雀 (火/羽/飞翔) -> 命名为 [丹羽] 系列
+# ==============================================================================
+
+# --- T1 [皮甲] 民夫短打 ---
+# HP加成: 0
+common_headband:
+  name: "§f民夫头巾"
+  material: LEATHER_HELMET
+  type: ARMOR
+  class: ARCHER
+  rarity: BROKEN
+  level: 0
+  def: 1.0
+  equippable:
+    slot: HEAD
+    model: "minecraft:leather"
+  description:
+    - "§7§o普通的头带。"
+
+common_shirt:
+  name: "§f民夫短打"
+  material: LEATHER_CHESTPLATE
+  type: ARMOR
+  class: ARCHER
+  rarity: BROKEN
+  level: 0
+  def: 3.0
+  equippable:
+    slot: CHEST
+    model: "minecraft:leather"
+  description:
+    - "§7§o干活和打猎都穿这个，"
+    - "§7§o胜在轻便。"
+
+common_trousers:
+  name: "§f粗布长裤"
+  material: LEATHER_LEGGINGS
+  type: ARMOR
+  class: ARCHER
+  rarity: BROKEN
+  level: 0
+  def: 2.0
+  equippable:
+    slot: LEGS
+    model: "minecraft:leather"
+
+common_boots:
+  name: "§f布鞋"
+  material: LEATHER_BOOTS
+  type: ARMOR
+  class: ARCHER
+  rarity: BROKEN
+  level: 0
+  def: 1.0
+  equippable:
+    slot: FEET
+    model: "minecraft:leather"
+
+# --- T2 [皮甲] 斥候劲装 ---
+# HP加成: 总计 +15
+scout_hood:
+  name: "§a斥候兜帽"
+  material: LEATHER_HELMET
+  type: ARMOR
+  class: ARCHER
+  rarity: COMMON
+  level: 10
+  def: 3.0
+  hp: 2.0
+  crit: 0.02
+  equippable:
+    slot: HEAD
+    model: "minecraft:leather"
+  description:
+    - "§7§o带有伪装色的兜帽。"
+
+scout_vest:
+  name: "§a斥候劲装"
+  material: LEATHER_CHESTPLATE
+  type: ARMOR
+  class: ARCHER
+  rarity: COMMON
+  level: 10
+  def: 7.0
+  hp: 6.0
+  speed: 0.05
+  equippable:
+    slot: CHEST
+    model: "minecraft:leather"
+  description:
+    - "§7§o紧身皮甲，适合丛林穿梭。"
+  skill_lore:
+    - "§a[属性] §7§o轻微提升移动速度。"
+
+scout_pants:
+  name: "§a斥候皮裤"
+  material: LEATHER_LEGGINGS
+  type: ARMOR
+  class: ARCHER
+  rarity: COMMON
+  level: 10
+  def: 6.0
+  hp: 4.0
+  equippable:
+    slot: LEGS
+    model: "minecraft:leather"
+
+scout_boots:
+  name: "§a斥候软靴"
+  material: LEATHER_BOOTS
+  type: ARMOR
+  class: ARCHER
+  rarity: COMMON
+  level: 10
+  def: 3.0
+  hp: 3.0
+  equippable:
+    slot: FEET
+    model: "minecraft:leather"
+  description:
+    - "§7§o落地无声。"
+
+# --- T3 [金属] 连环锁子甲 ---
+# HP加成: 总计 +35
+chain_coif:
+  name: "§9金羽盔"
+  material: GOLDEN_HELMET
+  type: ARMOR
+  class: ARCHER
+  rarity: UNCOMMON
+  level: 20
+  def: 6.0
+  hp: 5.0
+  crit: 0.03
+  equippable:
+    slot: HEAD
+    model: "minecraft:gold"
+
+chain_vest:
+  name: "§9连环锁子甲"
+  material: GOLDEN_CHESTPLATE
+  type: ARMOR
+  class: ARCHER
+  rarity: UNCOMMON
+  level: 20
+  def: 14.0
+  hp: 14.0
+  crit: 0.05
+  equippable:
+    slot: CHEST
+    model: "minecraft:gold"
+  description:
+    - "§7§o细小的铁环紧密扣合，"
+    - "§7§o防劈砍且不影响拉弓。"
+
+chain_leggings:
+  name: "§9锁子腿甲"
+  material: GOLDEN_LEGGINGS
+  type: ARMOR
+  class: ARCHER
+  rarity: UNCOMMON
+  level: 20
+  def: 10.0
+  hp: 10.0
+  equippable:
+    slot: LEGS
+    model: "minecraft:gold"
+
+chain_boots:
+  name: "§9铁环战靴"
+  material: GOLDEN_BOOTS
+  type: ARMOR
+  class: ARCHER
+  rarity: UNCOMMON
+  level: 20
+  def: 5.0
+  hp: 6.0
+  equippable:
+    slot: FEET
+    model: "minecraft:gold"
+
+# --- T4 [金属] 雁翎金甲 ---
+# HP加成: 总计 +60
+yanling_helmet:
+  name: "§d惊鸿盔"
+  material: GOLDEN_HELMET
+  type: ARMOR
+  class: ARCHER
+  rarity: RARE
+  level: 30
+  def: 10.0
+  hp: 10.0
+  crit_dmg: 0.10
+  equippable:
+    slot: HEAD
+    model: "minecraft:gold"
+  description:
+    - "§7§o造型如惊鸿展翅。"
+
+yanling_chest:
+  name: "§d雁翎金甲"
+  material: GOLDEN_CHESTPLATE
+  type: ARMOR
+  class: ARCHER
+  rarity: RARE
+  level: 30
+  def: 22.0
+  hp: 25.0
+  crit_dmg: 0.15
+  speed: 0.08
+  equippable:
+    slot: CHEST
+    model: "minecraft:gold"
+  description:
+    - "§7§o甲片打造得极薄，"
+    - "§7§o在阳光下闪烁金光。"
+  skill_lore:
+    - "§d[属性] §7§o大幅提升暴击伤害。"
+
+yanling_leggings:
+  name: "§d飞羽腿甲"
+  material: GOLDEN_LEGGINGS
+  type: ARMOR
+  class: ARCHER
+  rarity: RARE
+  level: 30
+  def: 18.0
+  hp: 15.0
+  crit_dmg: 0.10
+  equippable:
+    slot: LEGS
+    model: "minecraft:gold"
+
+yanling_boots:
+  name: "§d追云靴"
+  material: GOLDEN_BOOTS
+  type: ARMOR
+  class: ARCHER
+  rarity: RARE
+  level: 30
+  def: 8.0
+  hp: 10.0
+  equippable:
+    slot: FEET
+    model: "minecraft:gold"
+  description:
+    - "§7§o踏步如飞，追云逐月。"
+
+# ==============================================================================
+# [T5] 弓手·丹羽套装 (Archer - Vermilion Bird)
+# 意象：赤冠(头)、燎原(胸)、红莲(腿)、瞬影(脚)
+# ==============================================================================
+danyu_mask:
+  name: "§e丹羽赤冠"
+  material: GOLDEN_HELMET
+  type: ARMOR
+  class: ARCHER
+  rarity: EPIC
+  level: 40
+  def: 12.0
+  hp: 15.0
+  crit: 0.07
+  pen: 5.0
+  set: danyu_set
+  equippable:
+    slot: HEAD
+    model: "minecraft:gold"
+  description:
+    - "§7§o冠羽赤红，如燃烧的火焰。"
+  skill_lore:
+    - "§e[套装] 浴火而行 (4件)"
+    - "§7§o移动速度提升15%，攻击附带火属性。"
+
+danyu_chest:
+  name: "§e燎原羽衣"
+  material: GOLDEN_CHESTPLATE
+  type: ARMOR
+  class: ARCHER
+  rarity: EPIC
+  level: 40
+  def: 25.0
+  hp: 30.0
+  crit: 0.10
+  pen: 10.0
+  speed: 0.10
+  set: danyu_set
+  equippable:
+    slot: CHEST
+    model: "minecraft:gold"
+  description:
+    - "§7§o星星之火，可以燎原。"
+    - "§7§o轻盈得仿佛没有重量。"
+  skill_lore:
+    - "§e[机制] 焚天"
+    - "§7§o暴击时无视目标大量护甲。"
+
+danyu_leggings:
+  name: "§e红莲护膝"
+  material: GOLDEN_LEGGINGS
+  type: ARMOR
+  class: ARCHER
+  rarity: EPIC
+  level: 40
+  def: 20.0
+  hp: 25.0
+  crit: 0.07
+  pen: 5.0
+  set: danyu_set
+  equippable:
+    slot: LEGS
+    model: "minecraft:gold"
+  description:
+    - "§7§o行动间如红莲绽放。"
+
+danyu_boots:
+  name: "§e瞬影飞靴"
+  material: GOLDEN_BOOTS
+  type: ARMOR
+  class: ARCHER
+  rarity: EPIC
+  level: 40
+  def: 10.0
+  hp: 15.0
+  crit: 0.03
+  speed: 0.10
+  set: danyu_set
+  equippable:
+    slot: FEET
+    model: "minecraft:gold"
+  description:
+    - "§7§o来去无踪，只留残影。"
+
+
+# ==============================================================================
+# 阵法师套装 (Mage Sets)
+# 风格：道法、庚金、杀伐。全程布甲。
+# T5 意象：白虎 (金/杀/天煞) -> 命名为 [天煞] 系列
+# ==============================================================================
+
+# --- T1 [布甲] 粗布道衣 ---
+# HP加成: 0
+taoist_cap:
+  name: "§f粗布道帽"
+  material: LEATHER_HELMET
+  type: ARMOR
+  class: MAGE
+  rarity: BROKEN
+  level: 1
+  def: 1.0
+  mdef: 1.0
+  equippable:
+    slot: HEAD
+    model: "minecraft:leather"
+
+taoist_robe:
+  name: "§f粗布道衣"
+  material: LEATHER_CHESTPLATE
+  type: ARMOR
+  class: MAGE
+  rarity: BROKEN
+  level: 1
+  def: 1.0
+  mdef: 2.0
+  equippable:
+    slot: CHEST
+    model: "minecraft:leather"
+  description:
+    - "§7§o乡野道士常穿的旧衣服，"
+    - "§7§o画着歪歪扭扭的符咒。"
+
+taoist_pants:
+  name: "§f粗布道裤"
+  material: LEATHER_LEGGINGS
+  type: ARMOR
+  class: MAGE
+  rarity: BROKEN
+  level: 1
+  def: 1.0
+  equippable:
+    slot: LEGS
+    model: "minecraft:leather"
+
+taoist_shoes:
+  name: "§f十方鞋"
+  material: LEATHER_BOOTS
+  type: ARMOR
+  class: MAGE
+  rarity: BROKEN
+  level: 1
+  def: 1.0
+  equippable:
+    slot: FEET
+    model: "minecraft:leather"
+
+# --- T2 [布甲] 方士长袍 ---
+# HP加成: 总计 +10
+scholar_cap:
+  name: "§a方士巾"
+  material: LEATHER_HELMET
+  type: ARMOR
+  class: MAGE
+  rarity: COMMON
+  level: 10
+  def: 1.0
+  hp: 2.0
+  equippable:
+    slot: HEAD
+    model: "minecraft:leather"
+
+scholar_robe:
+  name: "§a方士长袍"
+  material: LEATHER_CHESTPLATE
+  type: ARMOR
+  class: MAGE
+  rarity: COMMON
+  level: 10
+  def: 3.0
+  hp: 4.0
+  skill_pct: 0.04
+  cdr: 0.03
+  equippable:
+    slot: CHEST
+    model: "minecraft:leather"
+  description:
+    - "§7§o游历天下的方士所穿的法袍，"
+    - "§7§o有助于感应天地灵气。"
+
+scholar_pants:
+  name: "§a方士下装"
+  material: LEATHER_LEGGINGS
+  type: ARMOR
+  class: MAGE
+  rarity: COMMON
+  level: 10
+  def: 3.0
+  hp: 3.0
+  skill_pct: 0.01
+  equippable:
+    slot: LEGS
+    model: "minecraft:leather"
+
+scholar_shoes:
+  name: "§a云履"
+  material: LEATHER_BOOTS
+  type: ARMOR
+  class: MAGE
+  rarity: COMMON
+  level: 10
+  def: 1.0
+  hp: 1.0
+  equippable:
+    slot: FEET
+    model: "minecraft:leather"
+  description:
+    - "§7§o鞋底绣有云纹。"
+
+# --- T3 [丝绸] 灵绸云纹 ---
+# HP加成: 总计 +25
+cloud_crown:
+  name: "§9灵绸发冠"
+  material: CHAINMAIL_HELMET
+  type: ARMOR
+  class: MAGE
+  rarity: UNCOMMON
+  level: 25
+  def: 2.0
+  hp: 5.0
+  skill_pct: 0.01
+  equippable:
+    slot: HEAD
+    model: "minecraft:chainmail"
+
+cloud_robe:
+  name: "§9云纹法衣"
+  material: CHAINMAIL_CHESTPLATE
+  type: ARMOR
+  class: MAGE
+  rarity: UNCOMMON
+  level: 25
+  def: 6.0
+  hp: 10.0
+  skill_pct: 0.05
+  cdr: 0.04
+  equippable:
+    slot: CHEST
+    model: "minecraft:chainmail"
+  description:
+    - "§7§o使用灵蚕丝编织，上绣流云纹，"
+    - "§7§o穿上后身轻如燕。"
+
+cloud_pants:
+  name: "§9云纹束裤"
+  material: CHAINMAIL_LEGGINGS
+  type: ARMOR
+  class: MAGE
+  rarity: UNCOMMON
+  level: 25
+  def: 5.0
+  hp: 7.0
+  skill_pct: 0.02
+  equippable:
+    slot: LEGS
+    model: "minecraft:chainmail"
+
+cloud_shoes:
+  name: "§9踏云靴"
+  material: CHAINMAIL_BOOTS
+  type: ARMOR
+  class: MAGE
+  rarity: UNCOMMON
+  level: 25
+  def: 2.0
+  hp: 3.0
+  equippable:
+    slot: FEET
+    model: "minecraft:chainmail"
+
+# --- T4 [丝绸] 太极阴阳 ---
+# HP加成: 总计 +45
+taiji_hat:
+  name: "§d阴阳法冠"
+  material: CHAINMAIL_HELMET
+  type: ARMOR
+  class: MAGE
+  rarity: RARE
+  level: 40
+  def: 3.0
+  hp: 8.0
+  skill_pct: 0.03
+  cdr: 0.03
+  equippable:
+    slot: HEAD
+    model: "minecraft:chainmail"
+  description:
+    - "§7§o镶嵌黑白双色宝玉，"
+    - "§7§o象征阴阳调和。"
+
+taiji_robe:
+  name: "§d太极道袍"
+  material: CHAINMAIL_CHESTPLATE
+  type: ARMOR
+  class: MAGE
+  rarity: RARE
+  level: 40
+  def: 8.0
+  hp: 15.0
+  skill_pct: 0.07
+  cdr: 0.06
+  equippable:
+    slot: CHEST
+    model: "minecraft:chainmail"
+  description:
+    - "§7§o背负太极图，袖藏乾坤，"
+    - "§7§o得道高人的象征。"
+  skill_lore:
+    - "§d[属性] §7§o大幅提升阵法威力。"
+
+taiji_pants:
+  name: "§d乾坤法裤"
+  material: CHAINMAIL_LEGGINGS
+  type: ARMOR
+  class: MAGE
+  rarity: RARE
+  level: 40
+  def: 6.0
+  hp: 12.0
+  skill_pct: 0.03
+  equippable:
+    slot: LEGS
+    model: "minecraft:chainmail"
+
+taiji_shoes:
+  name: "§d阴阳履"
+  material: CHAINMAIL_BOOTS
+  type: ARMOR
+  class: MAGE
+  rarity: RARE
+  level: 40
+  def: 3.0
+  hp: 10.0
+  equippable:
+    slot: FEET
+    model: "minecraft:chainmail"
+
+# ==============================================================================
+# [T5] 阵法·天煞套装 (Mage - White Tiger)
+# 意象：天煞(头)、庚金(胸)、藏锋(腿)、绝影(脚)
+# ==============================================================================
+tiansha_hood:
+  name: "§e天煞星巾"
+  material: CHAINMAIL_HELMET
+  type: ARMOR
+  class: MAGE
+  rarity: EPIC
+  level: 60
+  def: 5.0
+  hp: 10.0
+  mdef: 10.0
+  skill_pct: 0.05
+  cdr: 0.03
+  set: tiansha_set
+  equippable:
+    slot: HEAD
+    model: "minecraft:chainmail"
+  description:
+    - "§7§o应天煞孤星之命，"
+    - "§7§o主宰杀伐。"
+  skill_lore:
+    - "§e[套装] 庚金杀阵 (4件)"
+    - "§7§o法力上限提升20%，阵法附带肃杀之气。"
+
+tiansha_robe:
+  name: "§e庚金杀衣"
+  material: CHAINMAIL_CHESTPLATE
+  type: ARMOR
+  class: MAGE
+  rarity: EPIC
+  level: 60
+  def: 12.0
+  hp: 20.0
+  mdef: 25.0
+  skill_pct: 0.10
+  cdr: 0.05
+  set: tiansha_set
+  equippable:
+    slot: CHEST
+    model: "minecraft:chainmail"
+  description:
+    - "§7§o凝聚西方庚金之气，"
+    - "§7§o虽是布衣，却锋锐逼人。"
+  skill_lore:
+    - "§e[机制] 破煞"
+    - "§7§o对阵法内的敌人造成毁灭性打击。"
+
+tiansha_pants:
+  name: "§e藏锋法裤"
+  material: CHAINMAIL_LEGGINGS
+  type: ARMOR
+  class: MAGE
+  rarity: EPIC
+  level: 60
+  def: 8.0
+  hp: 15.0
+  mdef: 15.0
+  skill_pct: 0.075
+  cdr: 0.03
+  set: tiansha_set
+  equippable:
+    slot: LEGS
+    model: "minecraft:chainmail"
+  description:
+    - "§7§o锋芒暗藏，杀机不露。"
+
+tiansha_shoes:
+  name: "§e绝影步履"
+  material: CHAINMAIL_BOOTS
+  type: ARMOR
+  class: MAGE
+  rarity: EPIC
+  level: 60
+  def: 4.0
+  hp: 12.0
+  mdef: 10.0
+  skill_pct: 0.03
+  cdr: 0.01
+  set: tiansha_set
+  equippable:
+    slot: FEET
+    model: "minecraft:chainmail"
+  description:
+    - "§7§o踏雪无痕，绝影无声。"
+
+#===============================================================================
+#法宝
+#===============================================================================
+quiver_rare:
+  name: "§e无尽箭袋"
+  material: FLOWER_POT # 或其他物品
+  class: ARCHER
+  type: FABAO
+  fabao_slot: 9 # 放在第9格 (副手是41)
+  
+  # 主动技能配置
+  abilities:
+    - trigger: RIGHT_CLICK
+      id: QUIVER_STORE     # 右键存箭
+    - trigger: SHIFT_RIGHT
+      id: QUIVER_WITHDRAW  # 蹲右键取箭
+
+  # 常驻被动 (核心)
+  passive: QUIVER_SUPPLY   # 激活此法宝后，获得自动补给和优先消耗箭袋的能力
+  
+  description:
+    - "§7§o右键存入背包内所有箭矢"
+    - "§7§o蹲右键取出一组箭矢"
+    - "§7§o射击时优先消耗箭袋库存"
+
+metal_fabao:
+  name: "§e庚金"
+  material: FLINT
+  class: MAGE
+  type: FABAO
+  fabao_slot: 1
+  cooldown: 10
+  skill_cost: 5
+  description:
+    - "§7§o庚金带煞，无坚不摧。"
+
+  abilities:
+    - trigger: RIGHT_CLICK
+      id: MAGE_METAL
+
+  skill_lore:
+    - "{DYNAMIC_DESC}" # 占位符
+
+  # 动态描述配置
+  # 结构建议：[形态] -> [稀有度] -> [类型] -> 描述
+  fabao_lore:
+    offense:
+      UNCOMMON:
+        FURNACE: "§c[杀伐] §7向面朝方向射出金元素，造成阵法伤害"
+        #SWORD:   "§c[杀伐] §7桃木剑增幅：增加一次额外斩击。"
+      RARE:
+        FURNACE: "§c[杀伐] §7向面朝方向射出三枚飞刀，造成阵法伤害"
+      EPIC:
+        FURNACE: "§c[杀伐] §7展开诛邪剑阵，每次挥动手臂|||§7都会发射一根飞剑，造成阵法伤害"
+    
+    support:
+      UNCOMMON:
+        FURNACE: "§a[生息] §7给准星指向的玩家提升防御"
+        #SWORD:   "§a[生息] §7桃木剑增幅：赋予队友速度效果。"
+      RARE:
+        FURNACE: "§a[生息] §7给周围的玩家提升防御"
+      EPIC:
+        FURNACE: "§a[生息] §7给周围的玩家提升防御,|||§7并赋予他们反伤能力"
+
+wood_fabao:
+  name: "§a乙木"
+  material: MELON_SEEDS
+  class: MAGE
+  type: FABAO
+  fabao_slot: 2
+  cooldown: 12
+  skill_cost: 5
+  description:
+    - "§7§o乙木长生，生生不息。"
+
+  abilities:
+    - trigger: RIGHT_CLICK
+      id: MAGE_WOOD
+  
+  skill_lore:
+    - "{DYNAMIC_DESC}"
+
+  fabao_lore:
+    offense:
+      UNCOMMON: # T3 千丝
+        FURNACE: "§c[杀伐] §7射出一团带刺的荆棘，造成阵法伤害"
+      RARE:     # T4 弹射孢子
+        FURNACE: "§c[杀伐] §7射出荆棘孢子，命中后会在敌人间|||§7弹射，造成阵法伤害"
+      EPIC:     # T5 青帝·森罗
+        FURNACE: "§c[杀伐] §7召唤地蔓，禁锢路径上的敌人|||§7并造成阵法伤害"
+    
+    support:
+      UNCOMMON: # T3 回春
+        FURNACE: "§a[生息] §7赋予目标持续恢复生命的效果"
+      RARE:     # T4 滋养
+        FURNACE: "§a[生息] §7赋予持续恢复，且目标受治疗量提升"
+      EPIC:     # T5 灵枢
+        FURNACE: "§a[生息] §7赋予持续恢复，并使持续治疗效果|||§7可以传导给附近的队友"
+
+water_fabao:
+  name: "§b葵水"
+  material: WHEAT_SEEDS
+  class: MAGE
+  type: FABAO
+  fabao_slot: 3
+  cooldown: 12
+  skill_cost: 5
+  description:
+    - "§7§o上善若水，至柔至刚。"
+
+  abilities:
+    - trigger: RIGHT_CLICK
+      id: MAGE_WATER
+
+  skill_lore:
+    - "{DYNAMIC_DESC}"
+
+  fabao_lore:
+    offense:
+      UNCOMMON: # T3 却邪
+        FURNACE: "§c[杀伐] §7向周围释放寒冰气息，造成伤害并减速"
+      RARE:     # T4 寒渊
+        FURNACE: "§c[杀伐] §7向周围释放寒冰气息，更大程度的|||§7降低区域内敌人的移动速度"
+      EPIC:     # T5 玄冥·冰封
+        FURNACE: "§c[杀伐] §7绽放冰莲，冰莲爆开时范围内的敌人|||§7会被拉向莲花中心"
+    
+    support:
+      UNCOMMON: # T3 洗髓
+        FURNACE: "§a[生息] §7治疗目标并移除一个负面状态"
+      RARE:     # T4 清漪
+        FURNACE: "§a[生息] §7治疗并净化目标，同时赋予爆发性移速"
+      EPIC:     # T5 镜花
+        FURNACE: "§a[生息] §7净化目标并移除负面状态，同时|||§7恢复目标的饱食度"
+
+fire_fabao:
+  name: "§c离火"
+  material: CHARCOAL
+  class: MAGE
+  type: FABAO
+  fabao_slot: 4
+  cooldown: 20
+  skill_cost: 5
+  description:
+    - "§7§o离火燎原，焚尽八荒。"
+
+  abilities:
+    - trigger: RIGHT_CLICK
+      id: MAGE_FIRE
+
+  skill_lore:
+    - "{DYNAMIC_DESC}"
+
+  fabao_lore:
+    offense:
+      UNCOMMON: # T3 天劫
+        FURNACE: "§c[杀伐] §7标记目标区域，延迟后喷发火柱"
+      RARE:     # T4 爆炎
+        FURNACE: "§c[杀伐] §7附着爆炎火种，短暂延迟后引爆，|||§7并分裂出余烬二次爆炸"
+      EPIC:     # T5 大日·坠阳
+        FURNACE: "§c[杀伐] §7召唤业火领域，短暂延迟后从地面涌出，|||§7造成毁灭性的单次伤害，并多次分裂"
+    
+    support:
+      UNCOMMON: # T3 狼烟
+        FURNACE: "§a[生息] §7赋予目标攻击力与法术强度提升"
+      RARE:     # T4 热诚
+        FURNACE: "§a[生息] §7使目标提升攻击力，且攻击附带一定伤害"
+      EPIC:     # T5 聚变
+        FURNACE: "§a[生息] §7大幅提升周围所有队友的攻击性能，|||§7且使其攻击附带一定伤害"
+
+earth_fabao:
+  name: "§6戊土"
+  material: PUMPKIN_SEEDS
+  class: MAGE
+  type: FABAO
+  fabao_slot: 5
+  cooldown: 10
+  skill_cost: 5
+  description:
+    - "§7§o厚德载物，不动如山。"
+
+  abilities:
+    - trigger: RIGHT_CLICK
+      id: MAGE_EARTH
+
+  skill_lore:
+    - "{DYNAMIC_DESC}"
+
+  fabao_lore:
+    offense:
+      UNCOMMON: # T3 搬山
+        FURNACE: "§c[杀伐] §7投掷巨石，造成物理伤害并击退敌人"
+      RARE:     # T4 地刺
+        FURNACE: "§c[杀伐] §7召唤地刺裂缝，造成物理伤害并击飞敌人"
+      EPIC:     # T5 后土·合壑
+        FURNACE: "§c[杀伐] §7召唤三条地刺裂缝，|||§7对敌人造成物理伤害并追踪"
+    
+    support:
+      UNCOMMON: # T3 固元
+        FURNACE: "§a[生息] §7为目标施加吸收伤害的岩石护盾"
+      RARE:     # T4 岩铠
+        FURNACE: "§a[生息] §7施加岩铠，护盾破碎时会对周围造成伤害"
+      EPIC:     # T5 地脉
+        FURNACE: "§a[生息] §7展开地脉法阵，只要拥有未被击破的护盾，|||§7护盾值就会持续刷新"
+
+# ==============================================================================
+# 饰品
+# ==============================================================================
+
+test_acc:
+  name: "!!#414"
+  material: PUMPKIN_SEEDS
+  type: ACCESSORY
+  accessory_slot: 1
+  def: 10
+
+# ==============================================================================
+# 大世界材料与掉落物 (World Materials)
+# 用于合成或任务，对应 T1-T5 大世界怪物
+# ==============================================================================
+
+#---------货币----------
+coin_copper:
+  name: "§f铜钱"
+  material: GOLD_NUGGET
+  type: MATERIAL
+  money_value: 1
+
+coin_silver:
+  name: "§a金元宝"
+  material: GOLD_INGOT
+  type: MATERIAL
+  money_value: 10
+
+coin_gold:
+  name: "§9银票"
+  material: IRON_INGOT
+  type: MATERIAL
+  money_value: 100
+
+coin_platinum:
+  name: "§y金块"
+  material: GOLD_BLOCK
+  type: MATERIAL
+  money_value: 1000
+
+#---------元素----------
+element_metal:
+  name: "§f金元素"
+  material: EMERALD
+  type: ELEMENT
+  element_value: 1
+
+element_wood:
+  name: "§f木元素"
+  material: BONE
+  type: ELEMENT
+  element_value: 1
+
+element_water:
+  name: "§f水元素"
+  material: STRING
+  type: ELEMENT
+  element_value: 1
+
+element_fire:
+  name: "§f火元素"
+  material: BLAZE_ROD
+  type: ELEMENT
+  element_value: 1
+
+element_earth:
+  name: "§f土元素"
+  material: MAGMA_CREAM
+  type: ELEMENT
+  element_value: 1
+  
+element_refined_metal:
+  name: "§b精炼金元素"
+  material: EMERALD
+  type: ELEMENT
+  element_value: 5
+  item_model: "panling:element/refined_metal"
+
+element_refined_wood:
+  name: "§b精炼木元素"
+  material: BONE
+  type: ELEMENT
+  element_value: 5
+  item_model: "panling:element/refined_wood"
+
+element_refined_water:
+  name: "§b精炼水元素"
+  material: STRING
+  type: ELEMENT
+  element_value: 5
+  item_model: "panling:element/refined_water"
+
+element_refined_fire:
+  name: "§b精炼火元素"
+  material: BLAZE_ROD
+  type: ELEMENT
+  element_value: 5
+  item_model: "panling:element/refined_fire"
+
+element_refined_earth:
+  name: "§b精炼土元素"
+  material: MAGMA_CREAM
+  type: ELEMENT
+  element_value: 5
+  item_model: "panling:element/refined_earth"
+
+# --- T1 宁静平原 ---
+boar_tusk:
+  name: "§f野猪獠牙"
+  material: BONE_MEAL
+  type: MATERIAL
+  rarity: COMMON
+  description:
+    - "§7§o从野猪身上取下的獠牙，"
+    - "§7§o可以用来打磨简易匕首。"
+
+slime_essence:
+  name: "§f粘液精华"
+  material: SLIME_BALL
+  type: MATERIAL
+  rarity: COMMON
+
+# --- T2 迷雾森林 ---
+wolf_pelt:
+  name: "§a森林狼皮"
+  material: LEATHER
+  type: MATERIAL
+  rarity: COMMON
+  description:
+    - "§7§o保暖性不错的皮毛。"
+
+bandit_badge:
+  name: "§a强盗徽章"
+  material: IRON_NUGGET
+  type: MATERIAL
+  rarity: UNCOMMON
+  description:
+    - "§7§o强盗斥候随身携带的身份证明。"
+
+# --- T3 埋骨荒地 ---
+skeleton_bone_shard:
+  name: "§9碎裂的骨片"
+  material: BONE
+  type: MATERIAL
+  rarity: UNCOMMON
+
+beetle_carapace:
+  name: "§9甲虫硬壳"
+  material: SCUTE
+  type: MATERIAL
+  rarity: RARE
+  description:
+    - "§7§o非常坚硬的生物外壳，"
+    - "§7§o是制作防御装备的好材料。"
+
+# --- T4 极寒冰原 ---
+yeti_fur:
+  name: "§d雪人长毛"
+  material: WHITE_WOOL
+  type: MATERIAL
+  rarity: RARE
+
+frost_core:
+  name: "§d冰霜核心"
+  material: BLUE_ICE
+  type: MATERIAL
+  rarity: RARE
+  description:
+    - "§7§o散发着刺骨寒气的核心，"
+    - "§7§o触碰时会被冻伤。"
+
+# --- T5 燃烧炼狱 ---
+magma_heart:
+  name: "§e熔岩之心"
+  material: MAGMA_CREAM
+  type: MATERIAL
+  rarity: EPIC
+  description:
+    - "§7§o从熔岩巨人体内取出的心脏，"
+    - "§7§o依然在剧烈跳动，温度极高。"
+
+imp_horn:
+  name: "§e小鬼断角"
+  material: GOAT_HORN
+  type: MATERIAL
+  rarity: EPIC
+  description:
+    - "§7§o烈焰小鬼头上的角，"
+    - "§7§o蕴含着混乱的火元素。"

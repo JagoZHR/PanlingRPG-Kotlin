@@ -1,4 +1,4 @@
-package com.panling.basic.ui
+package com.panling.basic.ui // [建议] 移入 forge 包
 
 import com.panling.basic.PanlingBasic
 import com.panling.basic.api.BasicKeys
@@ -20,13 +20,16 @@ import org.bukkit.persistence.PersistentDataType
 
 class ForgeUI(private val manager: ForgeManager) {
 
-    // [核心修改] 获取插件实例
-    // 假设 PanlingBasic 有 getInstance() 静态方法
-    private val plugin = PanlingBasic.getInstance()
+    private val recipeKey: NamespacedKey
+    private val categoryKey: NamespacedKey
 
-    private val recipeKey = NamespacedKey(plugin, "forge_rid")
-    private val categoryKey = NamespacedKey(plugin, "forge_cat")
-    private val backKey = NamespacedKey(plugin, "ui_back_target")
+    init {
+        // [核心修改] 替换为主插件实例
+        // 假设 PanlingBasic 有静态 getInstance() 方法或者伴生对象
+        val instance = PanlingBasic.instance
+        this.recipeKey = NamespacedKey(instance, "forge_rid")
+        this.categoryKey = NamespacedKey(instance, "forge_cat")
+    }
 
     // === Level 1: 主分类菜单 ===
     fun openMainMenu(player: Player) {
@@ -39,19 +42,19 @@ class ForgeUI(private val manager: ForgeManager) {
             if (index >= slots.size) break
 
             val icon = ItemStack(cat.icon)
-            icon.editMeta { meta ->
-                meta.displayName(
-                    Component.text(cat.displayName)
-                        .color(NamedTextColor.GOLD)
-                        .decoration(TextDecoration.BOLD, true)
-                )
-                meta.lore(
-                    listOf(
-                        Component.text("§7点击查看该分类下的配方").decoration(TextDecoration.ITALIC, false)
-                    )
-                )
-                meta.persistentDataContainer.set(categoryKey, PersistentDataType.STRING, cat.name)
-            }
+            val meta = icon.itemMeta // 在 Bukkit 中 itemMeta 可能为 null，但新创建的 Item 通常不为 null，这里视为非空
+
+            meta.displayName(
+                Component.text(cat.displayName)
+                    .color(NamedTextColor.GOLD)
+                    .decoration(TextDecoration.BOLD, true)
+            )
+            val lore = ArrayList<Component>()
+            lore.add(Component.text("§7点击查看该分类下的配方").decoration(TextDecoration.ITALIC, false))
+            meta.lore(lore)
+
+            meta.persistentDataContainer.set(categoryKey, PersistentDataType.STRING, cat.name)
+            icon.itemMeta = meta
 
             inv.setItem(slots[index++], icon)
         }
@@ -59,43 +62,44 @@ class ForgeUI(private val manager: ForgeManager) {
         player.openInventory(inv)
     }
 
-    // === Level 2: 分类下的配方列表 ===
+    // === Level 2: 分类下的配方列表 (已修改) ===
     fun openCategoryMenu(player: Player, category: ForgeCategory) {
         val inv = Bukkit.createInventory(
             ForgeHolder("CATEGORY:${category.name}"),
             54,
             Component.text("§8${category.displayName}")
         )
-
-        // 从 Manager 获取引用 (ForgeManager 已转为 Kotlin，直接访问属性)
-        val itemManager = manager.itemManager // 如果报错请检查 ForgeManager 是否公开了 itemManager
-        val dataManager = manager.playerDataManager // 以前叫 getPlayerDataManager()
-        // 注意：这里需要确保 ForgeManager 暴露了 playerDataManager
-        // 如果没有，请在 ForgeManager 中添加 val playerDataManager get() = plugin.playerDataManager
+        val itemManager = manager.itemManager
+        val dataManager = manager.playerDataManager
 
         val recipes = manager.getRecipesByCategory(category)
         val playerClass = dataManager.getPlayerClass(player)
 
         var slot = 0
         for (recipe in recipes) {
+
             // =========================================================
             // [核心逻辑] 配方可见性检查
+            // 如果配方要求解锁，且玩家未解锁，则直接隐藏 (不显示)
             // =========================================================
             if (recipe.requiresUnlock && !dataManager.hasUnlockedRecipe(player, recipe.id)) {
                 continue
             }
+            // =========================================================
 
             var icon = itemManager.createItem(recipe.targetItemId, player)
             if (icon == null) {
                 icon = ItemStack(Material.BARRIER)
-                icon.editMeta {
-                    it.displayName(Component.text("Config Error: ${recipe.targetItemId}"))
-                }
+                val err = icon.itemMeta
+                err.displayName(Component.text("Config Error: ${recipe.targetItemId}"))
+                icon.itemMeta = err
             }
 
-            // 职业过滤
-            val reqClassStr = icon.itemMeta?.persistentDataContainer
-                ?.get(BasicKeys.FEATURE_REQ_CLASS, PersistentDataType.STRING)
+            // 职业过滤 (保持原有逻辑)
+            // 这里 icon 必定不为null，但 itemMeta 需要安全获取
+            val iconMeta = icon!!.itemMeta
+            val reqClassStr = iconMeta.persistentDataContainer
+                .get(BasicKeys.FEATURE_REQ_CLASS, PersistentDataType.STRING)
 
             if (reqClassStr != null) {
                 try {
@@ -104,14 +108,18 @@ class ForgeUI(private val manager: ForgeManager) {
                 } catch (ignored: Exception) {}
             }
 
-            icon.editMeta { meta ->
-                meta.persistentDataContainer.set(recipeKey, PersistentDataType.STRING, recipe.id)
+            // 重新获取 meta (虽然上面获取过，但为了逻辑清晰重新操作)
+            val meta = icon.itemMeta
+            meta.persistentDataContainer.set(recipeKey, PersistentDataType.STRING, recipe.id)
 
-                val lore = meta.lore() ?: ArrayList()
-                lore.add(Component.empty())
-                lore.add(Component.text("§e▶ 点击查看详情").decoration(TextDecoration.ITALIC, false))
-                meta.lore(lore)
-            }
+            // 处理 Lore
+            var lore = meta.lore()
+            if (lore == null) lore = ArrayList()
+            lore.add(Component.empty())
+            lore.add(Component.text("§e▶ 点击查看详情").decoration(TextDecoration.ITALIC, false))
+            meta.lore(lore)
+
+            icon.itemMeta = meta
 
             inv.setItem(slot++, icon)
         }
@@ -129,53 +137,56 @@ class ForgeUI(private val manager: ForgeManager) {
         )
         val itemManager = manager.itemManager
 
-        // 结果预览
         val result = itemManager.createItem(recipe.targetItemId, player)
         if (result != null) inv.setItem(13, result)
 
         var matSlot = 29
-        for ((matId, amountNeeded) in recipe.materials) {
-            var matIcon = itemManager.createItem(matId, player)
+        for ((key, value) in recipe.materials) {
+            var matIcon = itemManager.createItem(key, player)
             if (matIcon == null) matIcon = ItemStack(Material.PAPER)
 
-            matIcon.amount = amountNeeded
-            matIcon.editMeta { meta ->
-                val lore = ArrayList<Component>()
-                lore.add(Component.text("§7需要: $amountNeeded"))
+            matIcon.amount = value
+            val meta = matIcon.itemMeta
+            val lore = ArrayList<Component>()
+            lore.add(Component.text("§7需要: $value"))
 
-                val has = countItem(player, matId)
-                val color = if (has >= amountNeeded) "§a" else "§c"
-                lore.add(Component.text("${color}拥有: $has"))
+            val has = countItem(player, key)
+            val color = if (has >= value) "§a" else "§c"
+            lore.add(Component.text("$color 拥有: $has"))
 
-                meta.lore(lore)
-            }
+            meta.lore(lore)
+            matIcon.itemMeta = meta
             inv.setItem(matSlot++, matIcon)
         }
 
         // 锻造按钮
         val btn = ItemStack(Material.ANVIL)
-        btn.editMeta { meta ->
-            meta.displayName(Component.text("§a✔ 确认锻造").decoration(TextDecoration.BOLD, true))
+        val meta = btn.itemMeta
+        meta.displayName(Component.text("§a✔ 确认锻造").decoration(TextDecoration.BOLD, true))
 
-            val lore = ArrayList<Component>()
-            val balance = manager.playerDataManager.getMoney(player) // 假设 getMoney 存在
-            val cost = recipe.cost
+        val lore = ArrayList<Component>()
+        val balance = manager.playerDataManager.getMoney(player)
+        val cost = recipe.cost
 
-            if (cost > 0) {
-                val color = if (balance >= cost) "§e" else "§c"
-                lore.add(Component.text("${color}花费铜钱: ${String.format("%.0f", cost)}")
-                    .decoration(TextDecoration.ITALIC, false))
-                lore.add(Component.text("§7(当前余额: ${String.format("%.0f", balance)})")
-                    .decoration(TextDecoration.ITALIC, false))
-            } else {
-                lore.add(Component.text("§a免费锻造").decoration(TextDecoration.ITALIC, false))
-            }
-
-            lore.add(Component.empty())
-            lore.add(Component.text("§7点击开始锻造").decoration(TextDecoration.ITALIC, false))
-
-            meta.lore(lore)
+        if (cost > 0) {
+            val color = if (balance >= cost) "§e" else "§c"
+            lore.add(
+                Component.text(color + "花费铜钱: " + "%.0f".format(cost))
+                    .decoration(TextDecoration.ITALIC, false)
+            )
+            lore.add(
+                Component.text("§7(当前余额: " + "%.0f".format(balance) + ")")
+                    .decoration(TextDecoration.ITALIC, false)
+            )
+        } else {
+            lore.add(Component.text("§a免费锻造").decoration(TextDecoration.ITALIC, false))
         }
+
+        lore.add(Component.empty())
+        lore.add(Component.text("§7点击开始锻造").decoration(TextDecoration.ITALIC, false))
+
+        meta.lore(lore)
+        btn.itemMeta = meta
         inv.setItem(49, btn)
 
         addBackButton(inv, 45, "CATEGORY:${recipe.category.name}")
@@ -185,40 +196,36 @@ class ForgeUI(private val manager: ForgeManager) {
 
     private fun addBackButton(inv: Inventory, slot: Int, targetType: String) {
         val back = ItemStack(Material.ARROW)
-        back.editMeta { meta ->
-            meta.displayName(Component.text("§7返回").decoration(TextDecoration.ITALIC, false))
-            meta.persistentDataContainer.set(backKey, PersistentDataType.STRING, targetType)
-        }
+        val meta = back.itemMeta
+        meta.displayName(Component.text("§7返回").decoration(TextDecoration.ITALIC, false))
+
+        // [核心修改] 替换为主插件实例
+        meta.persistentDataContainer.set(
+            NamespacedKey(PanlingBasic.instance, "ui_back_target"),
+            PersistentDataType.STRING,
+            targetType
+        )
+
+        back.itemMeta = meta
         inv.setItem(slot, back)
     }
 
     private fun countItem(player: Player, itemId: String): Int {
-        // Kotlin 风格的流式计算
-        return player.inventory.contents
-            .filterNotNull()
-            .filter { it.hasItemMeta() }
-            .filter {
-                val id = it.itemMeta!!.persistentDataContainer.get(BasicKeys.ITEM_ID, PersistentDataType.STRING)
-                itemId == id
+        var count = 0
+        // getContents 可能会包含 null，但在 Kotlin 中处理 Array<ItemStack?>
+        for (item in player.inventory.contents) {
+            if (item != null && item.hasItemMeta()) {
+                val id = item.itemMeta.persistentDataContainer
+                    .get(BasicKeys.ITEM_ID, PersistentDataType.STRING)
+                if (itemId == id) count += item.amount
             }
-            .sumOf { it.amount }
+        }
+        return count
     }
 
-    // Kotlin 扩展函数简化 Meta 编辑
-    private fun ItemStack.editMeta(block: (ItemMeta) -> Unit) {
-        val meta = this.itemMeta ?: return
-        block(meta)
-        this.itemMeta = meta
-    }
-
-    // Holder 类
-    class ForgeHolder(val type: String?) : InventoryHolder {
+    class ForgeHolder(val type: String) : InventoryHolder {
         override fun getInventory(): Inventory {
-            // 返回 null 是安全的，但要小心某些插件可能会调用它
-            // 这里为了通过编译返回一个空 Inventory 或者 throw Exception
-            // 只要不被调用就没事。通常 Bukkit GUI 库的 Holder 只是个标记。
-            // 为了安全起见，这里抛出异常或者返回 null (Kotlin 中 inventory 是 Platform Type，可以返回 null)
-            throw UnsupportedOperationException("ForgeHolder assumes custom inventory handling")
+            throw UnsupportedOperationException("ForgeHolder does not hold the inventory instance directly.")
         }
     }
 }

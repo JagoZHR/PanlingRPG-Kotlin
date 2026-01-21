@@ -20,7 +20,7 @@ class ForgeListener(private val manager: ForgeManager) : Listener {
     private val ui: ForgeUI = ForgeUI(manager)
 
     // 获取插件实例 (兼容 Java/Kotlin 主类写法)
-    private val plugin = PanlingBasic.getInstance()
+    private val plugin = PanlingBasic.instance
 
     // [核心修改] 将 Key 的注册者统一为 PanlingBasic
     private val recipeKey = NamespacedKey(plugin, "forge_rid")

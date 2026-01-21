@@ -12,10 +12,10 @@ depend:
   - FastAsyncWorldEdit
 
 commands:
-  nmstest:
-    description: 验证 NMS 环境
-    usage: /nmstest
-  dungeontest:
-    description: 测试虚空副本创建性能
-    usage: /dungeontest
-    permission: panling.admin
+  plbasic:
+    description: Main command
+    usage: /plbasic <args>
+permissions:
+  plbasic.admin:
+    description: Allows editing items and reloading
+    default: op

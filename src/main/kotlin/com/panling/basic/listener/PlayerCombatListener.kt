@@ -80,7 +80,7 @@ class PlayerCombatListener(
             if (dataManager.getPlayerClass(p) == PlayerClass.MAGE) {
                 // 假设这是静态方法
                 try {
-                    MetalAttackT5FurnaceStrategy.tryFireSword(p, PanlingBasic.getInstance())
+                    MetalAttackT5FurnaceStrategy.tryFireSword(p, PanlingBasic.instance)
                 } catch (ignored: Throwable) {}
             }
         }
@@ -149,7 +149,7 @@ class PlayerCombatListener(
             val passiveKey = BasicKeys.TRIGGER_KEYS[SkillTrigger.PASSIVE]
 
             if (passiveKey != null && pdc.has(passiveKey, PersistentDataType.STRING)) {
-                val passiveSkillId = pdc.get(passiveKey, PersistentDataType.STRING)
+                val passiveSkillId = pdc.get(passiveKey, PersistentDataType.STRING)?:return
                 val skill = skillManager.getSkill(passiveSkillId)
 
                 // 检查 ArcherSkillStrategy 接口
@@ -232,7 +232,7 @@ class PlayerCombatListener(
         // 2. 技能回调 (Core)
         val pdc = projectile.persistentDataContainer
         if (pdc.has(skillArrowKey, PersistentDataType.STRING)) {
-            val skillId = pdc.get(skillArrowKey, PersistentDataType.STRING)
+            val skillId = pdc.get(skillArrowKey, PersistentDataType.STRING)?:return
             val skill = skillManager.getSkill(skillId)
 
             if (shooter != null) {
@@ -352,16 +352,16 @@ class PlayerCombatListener(
 
         // 2. 元素增益与反应
         if (attackerPlayer != null) {
-            finalDamage += PanlingBasic.getInstance().elementalManager.applyAttackBuffs(attackerPlayer, victim)
+            finalDamage += PanlingBasic.instance.elementalManager.applyAttackBuffs(attackerPlayer, victim)
 
             if (projectile != null) {
-                PanlingBasic.getInstance().elementalManager.handleElementHit(attackerPlayer, victim, projectile, finalDamage)
+                PanlingBasic.instance.elementalManager.handleElementHit(attackerPlayer, victim, projectile, finalDamage)
             }
         }
 
         // 3. 触发防御特效
         val effectiveAttacker = attackerPlayer ?: attackerMob
-        PanlingBasic.getInstance().elementalManager.handleDefenseTriggers(victim, effectiveAttacker, finalDamage)
+        PanlingBasic.instance.elementalManager.handleDefenseTriggers(victim, effectiveAttacker, finalDamage)
 
         // 触发受击者技能 (怪物)
         if (victim !is Player) {

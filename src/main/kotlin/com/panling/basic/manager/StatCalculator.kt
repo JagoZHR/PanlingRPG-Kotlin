@@ -114,7 +114,7 @@ class StatCalculator(
             for (key in BasicKeys.ALL_STATS) {
                 val valInPdc = pdc.get(key, PersistentDataType.DOUBLE)
                 if (valInPdc != null) {
-                    baseStats.merge(key, valInPdc, Double::sum)
+                    baseStats.merge(key, valInPdc) { a, b -> a + b }
                 }
             }
 
@@ -150,7 +150,7 @@ class StatCalculator(
             if (setDef != null) {
                 // 套装属性加成
                 setDef.getBonuses(count).forEach { (key, `val`) ->
-                    baseStats.merge(key, `val`, Double::sum)
+                    baseStats.merge(key, `val`) { a, b -> a + b }
                 }
                 // 缓存套装被动
                 cacheSetPassives(player, setDef, count)
@@ -163,7 +163,7 @@ class StatCalculator(
             val raceBonus = race.calculateBonus(player.level)
             // 假设 PlayerRace.bonusStats 是 List<NamespacedKey>
             for (key in race.bonusStats) {
-                baseStats.merge(key, raceBonus, Double::sum)
+                baseStats.merge(key, raceBonus) { a, b -> a + b }
             }
         }
 
@@ -229,13 +229,13 @@ class StatCalculator(
     private fun cacheSetPassives(player: Player, setDef: SetManager.SetDefinition, count: Int) {
         // 假设 SetManager 定义了这些内部类和枚举
         for (sp in setDef.getActivePassives(count, SetManager.PassiveType.ATTACK)) {
-            dataManager.addPassiveToCache(player, PlayerDataManager.PassiveTrigger.ATTACK, sp.id(), null, sp.cooldownMillis())
+            dataManager.addPassiveToCache(player, PlayerDataManager.PassiveTrigger.ATTACK, sp.id, null, sp.cooldownMillis)
         }
         for (sp in setDef.getActivePassives(count, SetManager.PassiveType.HIT)) {
-            dataManager.addPassiveToCache(player, PlayerDataManager.PassiveTrigger.HIT, sp.id(), null, sp.cooldownMillis())
+            dataManager.addPassiveToCache(player, PlayerDataManager.PassiveTrigger.HIT, sp.id, null, sp.cooldownMillis)
         }
         for (sp in setDef.getActivePassives(count, SetManager.PassiveType.CONSTANT)) {
-            dataManager.addPassiveToCache(player, PlayerDataManager.PassiveTrigger.CONSTANT, sp.id(), null, sp.cooldownMillis())
+            dataManager.addPassiveToCache(player, PlayerDataManager.PassiveTrigger.CONSTANT, sp.id, null, sp.cooldownMillis)
         }
     }
 
@@ -374,7 +374,7 @@ class StatCalculator(
 
         // Attribute.GENERIC_MAX_HEALTH 是现代 API 写法，Attribute.MAX_HEALTH 是旧版/别名
         // 视你的 API 版本而定，这里保持原样 Attribute.MAX_HEALTH
-        val attrHp = player.getAttribute(Attribute.GENERIC_MAX_HEALTH)
+        val attrHp = player.getAttribute(Attribute.MAX_HEALTH)
         if (attrHp != null && abs(attrHp.baseValue - finalHp) > 0.01) {
             attrHp.baseValue = finalHp
             // 如果当前血量超过上限，修剪一下；如果升级了血量，通常不需要自动回血
@@ -386,7 +386,7 @@ class StatCalculator(
         // 安全范围截断 (0.0 - 1.0)
         finalSpeed = finalSpeed.coerceIn(0.0, 1.0)
 
-        val attrSpeed = player.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED)
+        val attrSpeed = player.getAttribute(Attribute.MOVEMENT_SPEED)
         if (attrSpeed != null && abs(attrSpeed.baseValue - finalSpeed) > 0.0001) {
             attrSpeed.baseValue = finalSpeed
         }
@@ -395,7 +395,7 @@ class StatCalculator(
         var kb = getPlayerTotalStat(player, BasicKeys.ATTR_KB_RESIST)
         kb = kb.coerceIn(0.0, 1.0)
 
-        val attrKb = player.getAttribute(Attribute.GENERIC_KNOCKBACK_RESISTANCE)
+        val attrKb = player.getAttribute(Attribute.KNOCKBACK_RESISTANCE)
         if (attrKb != null && abs(attrKb.baseValue - kb) > 0.001) {
             attrKb.baseValue = kb
         }
