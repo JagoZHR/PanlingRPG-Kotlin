@@ -1,174 +1,68 @@
 package com.panling.basic.dungeon.phase
 
-import com.panling.basic.api.BasicKeys
+import com.panling.basic.PanlingBasic
 import com.panling.basic.dungeon.DungeonInstance
-import org.bukkit.Location
 import org.bukkit.Material
-import org.bukkit.Particle
 import org.bukkit.Sound
-import org.bukkit.block.Block
-import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.entity.Player
 import org.bukkit.event.block.Action
 import org.bukkit.event.player.PlayerInteractEvent
-import org.bukkit.inventory.ItemStack
-import org.bukkit.persistence.PersistentDataType
 import java.util.UUID
-import kotlin.random.Random
 
-class RewardPhase : AbstractDungeonPhase("REWARD") {
+/**
+ * 奖励阶段基类
+ * * 自动处理：箱子交互、防重复领取、领奖后自动结算
+ */
+abstract class AbstractRewardPhase(
+    plugin: PanlingBasic,
+    instance: DungeonInstance
+) : AbstractDungeonPhase(plugin, instance) {
 
-    private var chestLocStr: String? = null
-    private var rewards: List<String> = emptyList()
-
-    // [NEW] 记录已领取奖励的玩家UUID
+    // 记录已领奖玩家
     private val lootedPlayers = HashSet<UUID>()
-    private var realChestLoc: Location? = null // 缓存真实的箱子坐标
 
-    override fun load(config: ConfigurationSection) {
-        this.chestLocStr = config.getString("chest_loc")
-        this.rewards = config.getStringList("rewards")
+    override fun start() {
+        instance.broadcast("§6[奖励] 战斗结束！宝箱已出现。")
+        spawnChest()
     }
 
-    override fun onStart(instance: DungeonInstance) {
-        instance.broadcast("§6[奖励] 宝箱已生成！请点击开启。")
-        this.lootedPlayers.clear()
+    /**
+     * [必须实现] 在场景中生成宝箱 (或者特效)
+     */
+    abstract fun spawnChest()
 
-        chestLocStr?.let { str ->
-            try {
-                val parts = str.split(",")
-                val x = parts[0].trim().toDouble()
-                val y = parts[1].trim().toDouble()
-                val z = parts[2].trim().toDouble()
+    /**
+     * [必须实现] 给玩家发奖
+     */
+    abstract fun giveReward(player: Player)
 
-                // instance.world 是非空的，直接使用
-                val loc = Location(instance.world, x, y, z)
+    override fun onInteract(event: PlayerInteractEvent) {
+        if (event.action != Action.RIGHT_CLICK_BLOCK) return
+        val block = event.clickedBlock ?: return
 
-                // 确保区块加载
-                if (!loc.chunk.isLoaded) {
-                    loc.chunk.load()
-                }
+        // 简单判定：只要点击的是箱子或者末影箱，就视为开箱
+        // 子类如果需要更精确的判定（比如坐标判定），可以在这里加逻辑，或者重写此方法
+        if (block.type == Material.CHEST || block.type == Material.ENDER_CHEST || block.type == Material.TRAPPED_CHEST) {
 
-                this.realChestLoc = loc
-                val block = loc.block
-                block.type = Material.CHEST
+            event.isCancelled = true // 阻止原版箱子界面打开
+            val player = event.player
 
-                // 特效与音效
-                instance.world.spawnParticle(Particle.HAPPY_VILLAGER, loc.clone().add(0.5, 1.0, 0.5), 15)
-                instance.world.playSound(loc, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1f, 1f)
-
-            } catch (e: Exception) {
-                instance.plugin.logger.warning("RewardPhase 解析箱子坐标失败: $str")
-                e.printStackTrace()
+            if (lootedPlayers.contains(player.uniqueId)) {
+                player.sendMessage("§c你已经领取过奖励了！")
+                return
             }
+
+            // 发奖
+            giveReward(player)
+            lootedPlayers.add(player.uniqueId)
+
+            player.playSound(player.location, Sound.BLOCK_CHEST_OPEN, 1f, 1f)
+            player.sendMessage("§a领取成功！副本将在 10秒 后关闭。")
+
+            // 检查：如果所有人都领完了，或者有人触发了，就开始倒计时结束副本
+            // 这里简单处理：只要有人领奖，就触发副本胜利结算 (DungeonInstance 会负责倒计时踢人)
+            // 如果你想让每个人都必须领，可以判断 lootedPlayers.size == instance.players.size
+            instance.winDungeon()
         }
-    }
-
-    override fun onInteract(instance: DungeonInstance, event: PlayerInteractEvent): Boolean {
-        if (event.action != Action.RIGHT_CLICK_BLOCK) return false
-
-        val clicked = event.clickedBlock ?: return false
-        // 检查位置是否匹配 (使用 Kotlin 的安全调用和 equals)
-        if (realChestLoc == null || clicked.location != realChestLoc) return false
-
-        val player = event.player
-
-        // [核心修复] 检查个人领取状态
-        if (lootedPlayers.contains(player.uniqueId)) {
-            player.sendMessage("§c[提示] 你已经领取过奖励了！")
-            return true
-        }
-
-        // 检查背包空间
-        if (player.inventory.firstEmpty() == -1) {
-            player.sendMessage("§c[提示] 背包已满！请至少清理出 1 格空间。")
-            return true
-        }
-
-        // 发放奖励
-        giveRewards(instance, player)
-
-        // 标记为已领取
-        lootedPlayers.add(player.uniqueId)
-
-        // [核心修复] 检查是否所有人都领完了
-        // 逻辑：如果 (已领人数 >= 当前副本内总人数) -> 触发结算
-        if (lootedPlayers.size >= instance.players.size) {
-            instance.broadcast("§a所有成员已领取奖励，副本即将关闭。")
-
-            // 移除箱子
-            clicked.type = Material.AIR
-
-            // 触发通关流程
-            instance.finishDungeon()
-        }
-
-        return true
-    }
-
-    private fun giveRewards(instance: DungeonInstance, player: Player) {
-        // 音效与特效
-        player.playSound(player.location, Sound.BLOCK_CHEST_OPEN, 1f, 0.8f)
-        player.playSound(player.location, Sound.ENTITY_PLAYER_LEVELUP, 1f, 0.5f)
-
-        realChestLoc?.let { loc ->
-            instance.world.spawnParticle(Particle.FIREWORK, loc.clone().add(0.5, 0.5, 0.5), 30, 0.5, 0.5, 0.5, 0.1)
-        }
-
-        for (rewardStr in rewards) {
-            try {
-                val parts = rewardStr.split(":")
-                val itemId = parts[0]
-                val amount = if (parts.size > 1) parts[1].toInt() else 1
-                val chance = if (parts.size > 2) parts[2].toDouble() else 1.0
-
-                if (Random.nextDouble() <= chance) {
-                    // [对接 ItemManager]
-                    // 假设 plugin.itemManager 存在
-                    val item = instance.plugin.itemManager.createItem(itemId, player)
-
-                    if (item != null) {
-                        item.amount = amount
-                        player.inventory.addItem(item)
-
-                        val itemName = if (item.hasItemMeta() && item.itemMeta!!.hasDisplayName()) {
-                            item.itemMeta!!.displayName
-                        } else {
-                            itemId
-                        }
-
-                        player.sendMessage("§f获得: $itemName §7x$amount")
-
-                        if (isRare(item)) {
-                            instance.plugin.server.broadcastMessage("§e[传闻] 玩家 ${player.name} 在副本中获得了稀世珍宝: $itemName")
-                        }
-                    } else {
-                        instance.plugin.logger.warning("RewardPhase 奖励物品不存在: $itemId")
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-    private fun isRare(item: ItemStack): Boolean {
-        if (!item.hasItemMeta()) return false
-
-        val meta = item.itemMeta ?: return false
-        val container = meta.persistentDataContainer
-
-        // 读取稀有度权重
-        val weight = container.get(BasicKeys.ITEM_RARITY_WEIGHT, PersistentDataType.INTEGER)
-        return weight != null && weight >= 4 // 假设 4 是紫色史诗
-    }
-
-    override fun onTick(instance: DungeonInstance) {
-        // 不需要 Tick
-    }
-
-    override fun onEnd(instance: DungeonInstance) {
-        // 副本结束时，确保箱子消失
-        realChestLoc?.block?.type = Material.AIR
     }
 }

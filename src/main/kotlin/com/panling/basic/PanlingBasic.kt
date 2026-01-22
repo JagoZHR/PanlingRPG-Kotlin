@@ -50,6 +50,7 @@ class PanlingBasic : JavaPlugin() {
     lateinit var shopManager: ShopManager
     lateinit var reloadManager: ReloadManager
     lateinit var dungeonManager: DungeonManager
+    lateinit var worldScriptManager: WorldScriptManager
 
     // 内部使用的管理器，不需要公开 getter 也可以直接 private
     lateinit var commandManager: CommandManager
@@ -82,6 +83,7 @@ class PanlingBasic : JavaPlugin() {
         setManager = SetManager(this)
         accessoryManager = AccessoryManager(this, playerDataManager, itemManager)
         setManager.rebuildItemCache(itemManager)
+        worldScriptManager = WorldScriptManager(this)
 
         // 4. 状态与属性计算层
         buffManager = BuffManager(this)

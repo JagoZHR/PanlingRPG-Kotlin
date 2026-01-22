@@ -2,12 +2,16 @@ package com.panling.basic.dungeon
 
 import com.panling.basic.PanlingBasic
 import com.panling.basic.dungeon.phase.AbstractDungeonPhase
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Bukkit
-import org.bukkit.Location
 import org.bukkit.Sound
 import org.bukkit.World
 import org.bukkit.entity.Player
+import org.bukkit.event.entity.EntityDamageByEntityEvent
+import org.bukkit.event.entity.EntityDeathEvent
 import org.bukkit.event.player.PlayerInteractEvent
+import org.bukkit.scheduler.BukkitTask
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -17,215 +21,220 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class DungeonInstance(
     val plugin: PanlingBasic,
-    val manager: DungeonManager,
+    val instanceId: String, // [修改] 这里改用 String 类型的 instanceId 以匹配 Manager
     val template: DungeonTemplate,
-    val leader: Player,
-    val world: World
+    val world: World,
+    initialPlayers: List<Player> // [修改] 构造函数接收初始玩家列表
 ) {
-    val uuid: UUID = UUID.randomUUID()
-
-    // 使用线程安全的集合 (虽然一般来说 tick 是单线程的，但为了稳健)
+    // 玩家集合
     val players = ConcurrentHashMap.newKeySet<UUID>()
 
+    // 状态管理
     var state: DungeonState = DungeonState.LOADING
         private set
 
+    // [修改] 当前阶段 (不再使用 List<Phase> 和 Index)
+    var currentPhase: AbstractDungeonPhase? = null
+        private set
+
     private var startTime: Long = 0L
+    private var tickTask: BukkitTask? = null
 
-    // 阶段管理
-    private val phases = ArrayList<AbstractDungeonPhase>()
-    private var phaseIndex = -1
-    private var currentPhase: AbstractDungeonPhase? = null
+    // [修复] 新增 tick 计数器，供 Phase 使用
+    var tickCount: Long = 0L
+        private set
 
-    enum class DungeonState { LOADING, WAITING, RUNNING, ENDING, CLEARED }
+    enum class DungeonState { LOADING, RUNNING, ENDING }
 
     init {
-        players.add(leader.uniqueId)
-        // 从模板配置中加载阶段
-        // 注意：这里调用了 Manager 的辅助方法
-        val loadedPhases = manager.createPhases(template.phaseConfig)
-        phases.addAll(loadedPhases)
+        // 初始化玩家列表
+        initialPlayers.forEach { players.add(it.uniqueId) }
     }
 
     /**
-     * 开始副本 (进本逻辑)
-     * 由 DungeonManager 构建完世界后调用
+     * 启动副本
+     * [修改] 必须传入初始阶段
      */
-    fun start() {
-        this.state = DungeonState.RUNNING
-        this.startTime = System.currentTimeMillis()
+    fun start(initialPhase: AbstractDungeonPhase) {
+        if (state != DungeonState.LOADING) return
 
-        // 计算出生点 (基于 Schematic 原点的偏移)
-        val spawnLoc = Location(
-            world,
-            template.spawnOffset.x,
-            template.spawnOffset.y,
-            template.spawnOffset.z
-        )
+        state = DungeonState.RUNNING
+        startTime = System.currentTimeMillis()
+        tickCount = 0L // 重置计数器
 
-        // 传送玩家
-        players.forEach { uid ->
-            val p = Bukkit.getPlayer(uid)
-            if (p != null) {
-                p.teleport(spawnLoc)
-                p.sendMessage("§a[副本] 传送完成，挑战开始！")
-                p.playSound(p.location, Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f)
-            }
-        }
+        // 启动心跳任务
+        tickTask = Bukkit.getScheduler().runTaskTimer(plugin, Runnable {
+            onTick()
+        }, 0L, 1L)
 
-        // 启动第一个阶段
-        nextPhase()
+        // 进入第一阶段
+        transitionToPhase(initialPhase)
+
+        broadcast("§a副本已启动！目标：${template.displayName}")
     }
 
     /**
-     * 推进到下一阶段
+     * 切换到下一个阶段
+     * [修改] 由当前阶段显式传入下一个阶段对象
      */
-    fun nextPhase() {
-        // 结束当前阶段
-        currentPhase?.onEnd(this)
+    fun nextPhase(next: AbstractDungeonPhase) {
+        if (state != DungeonState.RUNNING) return
+        transitionToPhase(next)
+    }
 
-        phaseIndex++
-
-        // 检查是否所有阶段都结束了
-        if (phaseIndex >= phases.size) {
-            finishDungeon()
-            return
-        }
+    private fun transitionToPhase(phase: AbstractDungeonPhase) {
+        // 结束旧阶段
+        currentPhase?.end()
 
         // 启动新阶段
-        currentPhase = phases[phaseIndex]
-        plugin.logger.info("[Instance $uuid] 进入阶段: ${currentPhase?.type}")
+        currentPhase = phase
+        plugin.logger.info("副本 $instanceId 切换阶段 -> ${phase.javaClass.simpleName}")
 
-        // 这里的 try-catch 是为了防止某个阶段报错导致副本卡死
         try {
-            currentPhase?.onStart(this)
+            phase.start()
         } catch (e: Exception) {
-            plugin.logger.severe("阶段启动异常: ${e.message}")
+            plugin.logger.severe("副本阶段启动出错: ${e.message}")
             e.printStackTrace()
-            failDungeon("§c副本内部错误")
+            failDungeon("§c副本内部错误，请联系管理员。")
         }
     }
 
-    /**
-     * 心跳 (每秒由 Manager 调用)
-     */
-    fun tick() {
-        if (state == DungeonState.LOADING || state == DungeonState.ENDING) return
+    private fun onTick() {
+        if (state != DungeonState.RUNNING) return
 
-        // 1. 检查超时
-        val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000
-        if (elapsedSeconds > template.timeLimit) {
-            failDungeon("§c副本时间耗尽！")
-            return
-        }
+        // [修复] 计数器自增
+        tickCount++
 
-        // 2. 检查玩家在线
-        // 如果所有人都不在线了，直接销毁
-        val hasOnline = players.any { Bukkit.getPlayer(it) != null }
-        if (!hasOnline) {
-            manager.removeInstance(uuid)
-            return
-        }
-
-        // 3. 驱动当前阶段
-        if (state == DungeonState.RUNNING) {
-            try {
-                currentPhase?.onTick(this)
-            } catch (e: Exception) {
-                plugin.logger.warning("阶段 Tick 异常: ${e.message}")
+        // 检查超时 (每秒检查一次即可，节省性能)
+        if (tickCount % 20 == 0L) {
+            val elapsed = (System.currentTimeMillis() - startTime) / 1000
+            if (elapsed > template.timeLimit) {
+                failDungeon("§c时间耗尽！")
+                return
             }
         }
+
+        // 驱动当前阶段
+        currentPhase?.onTick()
+
+        // 可选：更新计分板/Actionbar
+        // players.forEach { ... }
     }
 
-    /**
-     * 移除玩家 (离开/退出)
-     */
-    fun removePlayer(player: Player) {
-        val uid = player.uniqueId
-        if (!players.contains(uid)) return
+    // ==========================================
+    // 事件分发 (代理给 currentPhase)
+    // ==========================================
 
-        players.remove(uid)
-
-        // 1. 传送到退出点
-        val exitLoc = template.exitLoc ?: Bukkit.getWorlds()[0].spawnLocation
-        player.teleport(exitLoc)
-        player.sendMessage("§e[系统] 你已离开副本。")
-
-        // 2. 通知 Manager 清理映射
-        manager.clearPlayerMap(uid)
-
-        // 3. 如果没人了，销毁实例
-        if (players.isEmpty()) {
-            manager.removeInstance(uuid)
+    fun handleInteract(event: PlayerInteractEvent) {
+        if (state == DungeonState.RUNNING) {
+            currentPhase?.onInteract(event)
         }
     }
 
-    /**
-     * 正常通关
-     */
-    fun finishDungeon() {
-        state = DungeonState.CLEARED
-        broadcast("§6§l副本通关！30秒后将自动传送离开...")
+    fun handleMobDeath(event: EntityDeathEvent) {
+        if (state == DungeonState.RUNNING) {
+            currentPhase?.onMobDeath(event)
+        }
+    }
 
-        // 播放音效
+    fun handlePlayerDeath(player: Player) {
+        if (state == DungeonState.RUNNING) {
+            currentPhase?.onPlayerDeath(player)
+            // 简单的失败判定示例：全员死亡
+            // if (getAlivePlayers().isEmpty()) failDungeon("全员阵亡")
+        }
+    }
+
+    fun handleDamage(event: EntityDamageByEntityEvent) {
+        if (state == DungeonState.RUNNING) {
+            // 如果 Phase 需要处理伤害事件，可以在 AbstractDungeonPhase 加对应方法
+            // currentPhase?.onDamage(event)
+        }
+    }
+
+    // ==========================================
+    // 结算与销毁
+    // ==========================================
+
+    /**
+     * 挑战成功 (通常由最后一个 Phase 调用)
+     */
+    fun winDungeon() {
+        if (state != DungeonState.RUNNING) return
+        broadcast("§a恭喜！副本挑战成功！")
         broadcastSound(Sound.UI_TOAST_CHALLENGE_COMPLETE)
 
-        // 延时踢人
+        // 延时关闭
+        state = DungeonState.ENDING
         Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-            // 复制一份列表防止并发修改异常
-            val playerList = ArrayList(players)
-            playerList.forEach { uid ->
-                val p = Bukkit.getPlayer(uid)
-                if (p != null) removePlayer(p)
-            }
-        }, 600L) // 30秒
+            stop()
+        }, 200L) // 10秒后传出
     }
 
     /**
      * 挑战失败
      */
     fun failDungeon(reason: String) {
-        if (state == DungeonState.ENDING) return
+        if (state != DungeonState.RUNNING) return
         broadcast(reason)
-        broadcast("§c挑战失败！将在 10 秒后关闭副本...")
-
-        state = DungeonState.ENDING // 防止重复触发
+        broadcast("§c挑战失败！副本即将关闭...")
         broadcastSound(Sound.ENTITY_VILLAGER_NO)
 
-        Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-            // 强制结束
-            endDungeon()
-        }, 200L)
-    }
-
-    /**
-     * 强制关闭 (通常由 failDungeon 或 管理员指令触发)
-     */
-    fun endDungeon() {
         state = DungeonState.ENDING
-        manager.removeInstance(uuid) // 这会触发 Manager 的清理逻辑 (踢人+回收)
+        Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+            stop()
+        }, 100L) // 5秒后传出
     }
 
     /**
-     * 处理交互事件 (分发给 Phase)
+     * 停止并清理
+     * (Manager.removeInstance 会调用 leave，这里负责内部任务清理)
      */
-    fun handleInteract(event: PlayerInteractEvent): Boolean {
-        if (state == DungeonState.RUNNING && currentPhase != null) {
-            return currentPhase!!.onInteract(this, event)
-        }
-        return false
+    fun stop() {
+        tickTask?.cancel()
+        currentPhase?.end()
+        // 通知 Manager 销毁我
+        // Manager 会负责把人踢出去并回收 World
+        plugin.dungeonManager.removeInstance(instanceId)
     }
 
-    // --- 辅助方法 ---
+    // ==========================================
+    // 玩家管理
+    // ==========================================
 
-    fun broadcast(msg: String) {
-        players.forEach { uid -> Bukkit.getPlayer(uid)?.sendMessage(msg) }
+    fun join(player: Player) {
+        players.add(player.uniqueId)
+        // 传送到副本出生点
+        val spawn = template.spawnOffset.toLocation(world)
+        player.teleport(spawn)
+        player.sendMessage("§e你加入了副本：${template.displayName}")
+    }
+
+    fun leave(player: Player) {
+        players.remove(player.uniqueId)
+
+        // 传送到退出点
+        val exit = template.exitLoc ?: Bukkit.getWorld("world")?.spawnLocation
+        if (exit != null) {
+            player.teleport(exit)
+        }
+
+        player.sendMessage("§e你离开了副本。")
+    }
+
+    // ==========================================
+    // 工具方法
+    // ==========================================
+
+    fun broadcast(message: String) {
+        players.forEach { uid ->
+            Bukkit.getPlayer(uid)?.sendMessage(message)
+        }
     }
 
     fun broadcastSound(sound: Sound) {
         players.forEach { uid ->
-            val p = Bukkit.getPlayer(uid)
-            p?.playSound(p.location, sound, 1f, 1f)
+            Bukkit.getPlayer(uid)?.playSound(Bukkit.getPlayer(uid)!!.location, sound, 1f, 1f)
         }
     }
 }

@@ -1,50 +1,48 @@
 package com.panling.basic.dungeon.phase
 
+import com.panling.basic.PanlingBasic
 import com.panling.basic.dungeon.DungeonInstance
-import org.bukkit.configuration.ConfigurationSection
+import org.bukkit.entity.Player
+import org.bukkit.event.entity.EntityDamageByEntityEvent
+import org.bukkit.event.entity.EntityDeathEvent
 import org.bukkit.event.player.PlayerInteractEvent
 
 /**
- * 副本阶段抽象基类
- * 替代了原有的 IDungeonPhase 接口
+ * 副本阶段抽象基类 (Code-First 版)
+ * * 子类应通过构造函数接收必要的参数，而不是通过 YAML load
  */
 abstract class AbstractDungeonPhase(
-    /**
-     * 获取阶段类型ID (如 "WAITING", "COMBAT")
-     */
-    val type: String
+    val plugin: PanlingBasic,
+    val instance: DungeonInstance
 ) {
 
     /**
-     * [初始化] 从 YAML 读取配置
-     * 在副本实例创建时调用
+     * [生命周期] 阶段开始
+     * 用于生成怪物、初始化倒计时、生成宝箱等
      */
-    abstract fun load(config: ConfigurationSection)
+    abstract fun start()
 
     /**
-     * [开始] 阶段刚切换时调用
-     * 用于生成怪物、设置空气墙、发通知
+     * [生命周期] 阶段结束
+     * 用于清理场地、移除当前阶段特有的实体
      */
-    abstract fun onStart(instance: DungeonInstance)
+    open fun end() {}
 
     /**
-     * [循环] 每秒(或每tick)调用
-     * 用于检查击杀数、倒计时、特殊机制触发
+     * [生命周期] 每 Tick 调用
+     * 用于倒计时、检查胜利条件
      */
-    abstract fun onTick(instance: DungeonInstance)
+    open fun onTick() {}
 
-    /**
-     * [结束] 阶段切换或副本强制结束时调用
-     * 用于清理场地、删除怪物
-     */
-    abstract fun onEnd(instance: DungeonInstance)
+    // ==========================================
+    // 事件钩子 (子类按需覆盖)
+    // ==========================================
 
-    /**
-     * [NEW] 处理玩家交互事件
-     * 默认为不处理。子类可以重写此方法来实现特定交互逻辑（如点击机关）。
-     * @return true 表示已处理(取消原版事件)，false 表示忽略
-     */
-    open fun onInteract(instance: DungeonInstance, event: PlayerInteractEvent): Boolean {
-        return false
-    }
+    open fun onInteract(event: PlayerInteractEvent) {}
+
+    open fun onMobDeath(event: EntityDeathEvent) {}
+
+    open fun onPlayerDeath(player: Player) {}
+
+    open fun onDamage(event: EntityDamageByEntityEvent) {}
 }

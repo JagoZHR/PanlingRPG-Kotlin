@@ -18,10 +18,12 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.metadata.FixedMetadataValue
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.java.JavaPlugin
+import com.panling.basic.util.ClassScanner
 import java.util.*
 
 class SkillManager(
-    private val plugin: JavaPlugin,
+    // [修改] 直接接收 PanlingBasic，方便反射传参
+    private val plugin: PanlingBasic,
     private val cooldownManager: CooldownManager,
     private val dataManager: PlayerDataManager
 ) {
@@ -32,61 +34,67 @@ class SkillManager(
     }
 
     init {
-        registerBuiltInSkills()
+        // [修改] 替换为自动扫描
+        loadAllSkills()
+
+        // 启动被动技能心跳检测
         startPassiveTask()
     }
 
-    private fun registerBuiltInSkills() {
-        // 注册弓箭手技能
-        register(ExplosiveArrowSkill(plugin))
+    /**
+     * [核心修改] 自动扫描并注册所有技能
+     */
+    private fun loadAllSkills() {
+        skills.clear()
+        plugin.logger.info("开始扫描并注册技能...")
 
         // 注册箭袋相关技能 (传入 dataManager)
-        register(QuiverSkills.Store(dataManager))
-        register(QuiverSkills.Withdraw(dataManager))
-        register(QuiverSkills.Supply(dataManager))
+        registerSkill(QuiverSkills.Store(dataManager))
+        registerSkill(QuiverSkills.Withdraw(dataManager))
+        registerSkill(QuiverSkills.Supply(dataManager))
 
-        // 强转插件实例以传递给需要特定类型的构造函数
-        val pb = plugin as? PanlingBasic ?: return
+        // 扫描 com.panling.basic 包下所有继承 AbstractSkill 的类
+        val skillClasses = ClassScanner.scanClasses(plugin, "com.panling.basic", AbstractSkill::class.java)
 
-        // 注册法师技能 (五行)
-        register(MageMetalSkill(pb))
-        register(MageWoodSkill(pb))
-        register(MageEarthSkill(pb))
-        register(MageWaterSkill(pb))
-        register(MageFireSkill(pb))
+        var count = 0
+        for (clazz in skillClasses) {
+            try {
+                // 尝试实例化技能类
+                // 优先寻找带 PanlingBasic 参数的构造函数
+                val skillInstance = try {
+                    val constructor = clazz.getConstructor(PanlingBasic::class.java)
+                    constructor.newInstance(plugin)
+                } catch (e: NoSuchMethodException) {
+                    // 如果没有，尝试寻找无参构造函数
+                    try {
+                        val constructor = clazz.getConstructor()
+                        constructor.newInstance()
+                    } catch (ex: Exception) {
+                        // 两个构造函数都没有，跳过
+                        plugin.logger.warning("无法实例化技能类 ${clazz.simpleName}: 需要 constructor(plugin) 或无参构造函数")
+                        continue
+                    }
+                }
 
-        // 注册法师法宝基础技能
-        register(MageBaseArtifactAttackSkill(pb))
-        register(MageBaseArtifactHealSkill(pb))
-
-        // 注册战士技能
-        register(GoldenBellT2Skill(pb))
-        register(PoJunT2Skill(pb))
-        register(GoldenBellT3Skill(pb))
-        register(PoJunT3Skill(pb))
-        register(GoldenBellT4Skill(pb))
-        register(PoJunT4Skill(pb))
-        register(GoldenBellT5Skill(pb))
-        register(PoJunT5Skill(pb))
-
-        // 注册通用/其他技能
-        register(YunshuiActiveSkill(pb))
-        register(YunshuiPassiveSkill(pb))
-        register(ZidianPassiveSkill(pb))
-        register(ZidianActiveSkill(pb))
-
-        // 注册进阶弓箭手技能
-        register(RangerT3Skill(pb))
-        register(SniperT4Skill(pb))
-        register(RangerT4Skill(pb))
-        register(SniperT5Skill(pb))
-        register(RangerT5Skill(pb))
-        register(RangerT6Skill(pb))
-        register(ChangfengSkill(pb))
+                registerSkill(skillInstance)
+                count++
+            } catch (e: Exception) {
+                plugin.logger.severe("加载技能 ${clazz.simpleName} 时发生错误: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+        plugin.logger.info("共自动注册了 $count 个技能。")
     }
 
-    fun register(skill: AbstractSkill) {
+    /**
+     * 注册单个技能
+     */
+    fun registerSkill(skill: AbstractSkill) {
+        if (skills.containsKey(skill.id)) {
+            plugin.logger.warning("发现重复的技能ID: ${skill.id} (${skill.javaClass.simpleName})，原有技能将被覆盖。")
+        }
         skills[skill.id] = skill
+        // 可以在这里打印日志: plugin.logger.info("已注册技能: [${skill.id}] ${skill.displayName}")
     }
 
     fun getSkill(id: String): AbstractSkill? {
