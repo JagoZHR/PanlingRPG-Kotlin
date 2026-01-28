@@ -81,6 +81,9 @@ class StatCalculator(
                     BasicKeys.ATTR_DEFENSE -> strategy.modifyDefense(player, value, heldTime)
                     BasicKeys.ATTR_LIFE_STEAL -> strategy.modifyLifeSteal(player, value, heldTime)
                     BasicKeys.ATTR_PHYSICAL_DAMAGE -> strategy.modifyAttackDamage(player, value, heldTime)
+                    // [NEW] 新增生命值和移速的修饰
+                    BasicKeys.ATTR_MAX_HEALTH -> strategy.modifyMaxHealth(player, value, heldTime)
+                    BasicKeys.ATTR_MOVE_SPEED -> strategy.modifyMovementSpeed(player, value, heldTime)
                     else -> value
                 }
             }

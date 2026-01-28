@@ -206,11 +206,22 @@ class SubClassManager(
     }
 
     // ========================================================================
-    // 2. 策略注册
+    // 2. 策略注册 (核心修改部分)
     // ========================================================================
     private fun registerStrategies() {
 
+        // 辅助函数：线性插值 (Linear Interpolation)
+        // time: 当前持有时长 (0-10s)
+        // startVal: 0秒时的倍率
+        // endVal: 10秒时的倍率
+        fun lerp(time: Double, startVal: Double, endVal: Double): Double {
+            val t = (time / 10.0).coerceIn(0.0, 1.0)
+            return startVal + (endVal - startVal) * t
+        }
+
         // === 1. 破军 (PO_JUN) ===
+        // 机制：线性增强 (吸血)
+        // 惩罚：防御力线性恢复 (-50% -> -20%)
         strategies[PlayerSubClass.PO_JUN] = object : SubClassStrategy {
             override fun modifyAttackDamage(player: Player, damage: Double, seconds: Double): Double {
                 val maxHp = player.getAttribute(Attribute.MAX_HEALTH)?.value ?: 20.0
@@ -223,27 +234,42 @@ class SubClassManager(
                 val maxHp = player.getAttribute(Attribute.MAX_HEALTH)?.value ?: 20.0
                 val currentHp = player.health
                 val ratio = currentHp / maxHp
-
                 val baseRate = when {
                     ratio > 0.5 -> 0.003
                     ratio >= 0.2 -> 0.007
                     else -> 0.015
                 }
-
                 val cdr = statCalculator.getPlayerTotalStat(player, BasicKeys.ATTR_CDR)
                 val effectiveSeconds = min(10.0, seconds * (1.0 + cdr))
-
                 return original + (effectiveSeconds * baseRate)
+            }
+
+            override fun modifyDefense(player: Player, originalDefense: Double, holdSeconds: Double): Double {
+                // 刚切换：0.5 (减少50%)
+                // 10秒后：0.8 (减少20%)
+                // 线性过渡
+                val factor = lerp(holdSeconds, 0.5, 0.8)
+                return originalDefense * factor
             }
         }
 
         // === 2. 金钟 (GOLDEN_BELL) ===
+        // 机制：线性增强 (防御)
+        // 惩罚：伤害线性恢复 (-50% -> -20%)
         strategies[PlayerSubClass.GOLDEN_BELL] = object : SubClassStrategy {
             override fun modifyDefense(player: Player, def: Double, seconds: Double): Double {
                 val cdr = statCalculator.getPlayerTotalStat(player, BasicKeys.ATTR_CDR)
                 val effectiveSeconds = min(10.0, seconds * (1.0 + cdr))
                 val percentBonus = effectiveSeconds * 0.01
                 return def * (1.0 + percentBonus)
+            }
+
+            override fun modifyAttackDamage(player: Player, originalDamage: Double, holdSeconds: Double): Double {
+                // 刚切换：0.5 (减少50%)
+                // 10秒后：0.8 (减少20%)
+                // 线性过渡
+                val factor = lerp(holdSeconds, 0.5, 0.8)
+                return originalDamage * factor
             }
 
             override fun onAttackEffect(player: Player, event: EntityDamageByEntityEvent, seconds: Double) {
@@ -272,15 +298,9 @@ class SubClassManager(
                     mob.removeMetadata(META_AGGRO_OWNER, plugin)
                     return false
                 }
-
                 val newTarget = event.target
-                if (newTarget != null && newTarget.uniqueId == owner.uniqueId) {
-                    return true
-                }
-
-                if (event.reason == EntityTargetEvent.TargetReason.TARGET_DIED) {
-                    return true
-                }
+                if (newTarget != null && newTarget.uniqueId == owner.uniqueId) return true
+                if (event.reason == EntityTargetEvent.TargetReason.TARGET_DIED) return true
 
                 event.isCancelled = true
                 if (mob.target == null || mob.target!!.uniqueId != owner.uniqueId) {
@@ -293,6 +313,8 @@ class SubClassManager(
         }
 
         // === 3. 狙击 (SNIPER) ===
+        // 机制：线性增强 (无视击退)
+        // 惩罚：移速线性恢复 (-50% -> -30%)
         strategies[PlayerSubClass.SNIPER] = object : SubClassStrategy {
             override fun onShoot(player: Player, arrow: org.bukkit.entity.AbstractArrow, force: Float) {
                 if (force >= 0.95) {
@@ -310,15 +332,25 @@ class SubClassManager(
                     }
                 }
             }
+
+            override fun modifyMovementSpeed(player: Player, originalSpeed: Double, holdSeconds: Double): Double {
+                // 刚切换：0.5 (减少50%)
+                // 10秒后：0.7 (减少30%)
+                // 线性过渡
+                val factor = lerp(holdSeconds, 0.5, 0.7)
+                return originalSpeed * factor
+            }
         }
 
         // === 4. 游侠 (RANGER) ===
+        // 机制：阶梯式增强 (附魔等级)
+        // 惩罚：阶梯式恢复 (血量 -30% -> -25% -> -20%)
         strategies[PlayerSubClass.RANGER] = object : SubClassStrategy {
             override fun getRangerEnchantBonus(player: Player, heldTime: Double): IntArray {
                 var charge = 0
                 var pierce = 0
                 var multishot = 0
-
+                // 阶段性逻辑
                 if (heldTime >= 10.0) {
                     charge += 2
                     pierce += 2
@@ -327,15 +359,23 @@ class SubClassManager(
                     charge += 1
                     pierce += 1
                 }
-
                 if (player.hasMetadata("pl_ranger_t3_active")) {
                     charge += 1
                 }
-
                 return intArrayOf(charge, pierce, multishot)
+            }
+
+            override fun modifyMaxHealth(player: Player, originalHealth: Double, holdSeconds: Double): Double {
+                // 0~5秒: -30% (x0.7)
+                // 5~10秒: -25% (x0.75)
+                // 10秒+: -20% (x0.8)
+                val factor = when {
+                    holdSeconds >= 10.0 -> 0.8
+                    holdSeconds >= 5.0 -> 0.75
+                    else -> 0.7
+                }
+                return originalHealth * factor
             }
         }
     }
-
-    // [修复] 删除了导致泛型推断错误的 getOrDefault 扩展函数
 }
