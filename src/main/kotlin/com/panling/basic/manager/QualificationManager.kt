@@ -8,32 +8,43 @@ import org.bukkit.persistence.PersistentDataType
 class QualificationManager(private val dataManager: PlayerDataManager) {
 
     companion object {
-        // 阈值：稀有度权重 >= 6 时需要检测资格
-        private const val QUALIFICATION_THRESHOLD = 6
+        // [修改] 只有权重/阶级 <= 1 的物品才默认允许使用
+        // 假设 BasicKeys.ITEM_RARITY_WEIGHT 存储的是阶级 (1, 2, 3...)
+        private const val FREE_USAGE_MAX_TIER = 1
+
+        // [新增] 全局白名单：配置不需要资格就能用的物品ID (如药水、食物、回城卷轴)
+        private val GLOBAL_WHITELIST = setOf(
+            "quiver_uncommon",
+            "alchemy_furnace"
+        )
     }
 
     /**
      * 检查玩家是否有资格使用该物品
-     * @return true=通过 (包括不需要检查的情况), false=未通过
      */
     fun checkQualification(player: Player, item: ItemStack?): Boolean {
         if (item == null || !item.hasItemMeta()) return true
 
-        // item.itemMeta!! 在 hasItemMeta() 为 true 时是安全的
         val pdc = item.itemMeta!!.persistentDataContainer
 
-        // 1. 快速检查权重 (int 对比，极快)
-        // 使用 Elvis 操作符处理 null，如果没配权重默认视作 0
-        val weight = pdc.get(BasicKeys.ITEM_RARITY_WEIGHT, PersistentDataType.INTEGER) ?: 0
+        // 1. 获取物品 ID
+        val itemId = pdc.get(BasicKeys.ITEM_ID, PersistentDataType.STRING) ?: return true
 
-        if (weight < QUALIFICATION_THRESHOLD) {
-            return true // 低稀有度直接通过
+        // 2. [核心修改] 检查白名单
+        if (GLOBAL_WHITELIST.contains(itemId)) {
+            return true
         }
 
-        // 2. 获取物品 ID
-        val itemId = pdc.get(BasicKeys.ITEM_ID, PersistentDataType.STRING) ?: return true // 理论上不会发生
+        // 3. [核心修改] 检查阶级/权重
+        // 如果物品没有配置权重，默认为 1 (新手物品)
+        val weight = pdc.get(BasicKeys.ITEM_RARITY_WEIGHT, PersistentDataType.INTEGER) ?: 1
 
-        // 3. 检查玩家数据
+        // 只有 1 阶及以下物品默认放行
+        if (weight <= FREE_USAGE_MAX_TIER) {
+            return true
+        }
+
+        // 4. 其他所有情况：必须在已解锁列表中
         return hasUnlocked(player, itemId)
     }
 

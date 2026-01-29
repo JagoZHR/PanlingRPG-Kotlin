@@ -223,4 +223,17 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
         val id = item.itemMeta?.persistentDataContainer?.get(BasicKeys.ITEM_ID, PersistentDataType.STRING)
         return targetId == id
     }
+    /**
+     * [API] 检查玩家是否已解锁某配方
+     * 实际逻辑委托给 PlayerDataManager
+     */
+    fun hasUnlockedRecipe(player: Player, recipeId: String): Boolean {
+        // 直接调用 PlayerDataManager 中已有的方法
+        return playerDataManager.hasUnlockedRecipe(player, recipeId)
+    }
+
+    // 在 ForgeManager 类中添加：
+    fun getAllRecipes(): Collection<ForgeRecipe> {
+        return recipes.values
+    }
 }

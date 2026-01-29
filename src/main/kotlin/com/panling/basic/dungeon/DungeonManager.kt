@@ -43,23 +43,41 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
     }
 
     private fun setupInstanceWorld() {
-        if (Bukkit.getWorld(INSTANCE_WORLD_NAME) == null) {
-            val creator = WorldCreator(INSTANCE_WORLD_NAME)
-            creator.generator(VoidGenerator())
-            val world = Bukkit.createWorld(creator)
-            if (world != null) {
-                world.isAutoSave = false
+        // 1. 检查世界是否已经加载 (虽然 onEnable 时通常未加载，但为了保险)
+        val existingWorld = Bukkit.getWorld(INSTANCE_WORLD_NAME)
+        if (existingWorld != null) {
+            plugin.logger.info("检测到旧副本世界，正在卸载...")
+            Bukkit.unloadWorld(existingWorld, false) // false = 不保存
+        }
 
-                // [核心修改] 设置游戏规则
-                world.setGameRule(GameRule.KEEP_INVENTORY, true)      // 死亡不掉落
-                world.setGameRule(GameRule.DO_MOB_SPAWNING, false)    // 禁止自然刷怪
-                world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false)  // 锁定时间
-                world.setGameRule(GameRule.DO_WEATHER_CYCLE, false)   // 锁定天气
-                world.setGameRule(GameRule.MOB_GRIEFING, false)       // 禁止怪物破坏(苦力怕炸坑)
-                world.time = 6000 // 永远中午
-
-                plugin.logger.info("副本世界 $INSTANCE_WORLD_NAME 已加载并应用规则。")
+        // 2. [核心修复] 物理删除世界文件夹
+        // 这确保每次重启服务器，副本世界都是一张白纸，index=0 的位置也是空的
+        val worldFolder = File(Bukkit.getWorldContainer(), INSTANCE_WORLD_NAME)
+        if (worldFolder.exists()) {
+            plugin.logger.info("正在清理旧副本数据...")
+            val deleted = worldFolder.deleteRecursively()
+            if (!deleted) {
+                plugin.logger.warning("警告：旧副本数据清理失败！可能会导致地图重叠。请检查文件占用。")
             }
+        }
+
+        // 3. 重新创建纯净的虚空世界
+        val creator = WorldCreator(INSTANCE_WORLD_NAME)
+        creator.generator(VoidGenerator())
+        val world = Bukkit.createWorld(creator)
+
+        if (world != null) {
+            world.isAutoSave = false
+
+            // 应用规则
+            world.setGameRule(GameRule.KEEP_INVENTORY, true)
+            world.setGameRule(GameRule.DO_MOB_SPAWNING, false)
+            world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false)
+            world.setGameRule(GameRule.DO_WEATHER_CYCLE, false)
+            world.setGameRule(GameRule.MOB_GRIEFING, false)
+            world.time = 6000
+
+            plugin.logger.info("副本世界 $INSTANCE_WORLD_NAME 已重置并加载。")
         }
     }
 
@@ -140,7 +158,24 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
     }
 
     fun isPlaying(player: Player) = playerInstanceMap.containsKey(player.uniqueId)
-    fun getInstance(player: Player) = activeInstances[playerInstanceMap[player.uniqueId]]
+    // [核心修复] 防御性 NPE 检查
+    fun getInstance(player: Player?): DungeonInstance? {
+        // 1. 基础判空
+        if (player == null) return null
+
+        // 2. 安全获取 UUID (防止极个别情况下的异常)
+        val uuid = try {
+            player.uniqueId
+        } catch (e: Exception) {
+            return null
+        }
+
+        // 3. 安全查询 Map (ConcurrentHashMap 不允许 get(null))
+        val id = playerInstanceMap[uuid] ?: return null
+
+        // 4. 返回实例
+        return activeInstances[id]
+    }
 
     fun getInstanceAt(location: Location): DungeonInstance? {
         if (location.world?.name != INSTANCE_WORLD_NAME) return null

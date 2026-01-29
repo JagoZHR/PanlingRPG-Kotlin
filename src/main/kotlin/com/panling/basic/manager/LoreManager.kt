@@ -412,7 +412,7 @@ object LoreManager {
                 val slotName = if (targetSlotIndex == 40) "副手" else "栏位 ${targetSlotIndex + 1}"
                 Component.text("✖ 须放入 $slotName 激活").color(NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)
             }
-            9 -> Component.text("✖ 未获得该神器的使用资格").color(NamedTextColor.DARK_RED).decoration(TextDecoration.BOLD, true).decoration(TextDecoration.ITALIC, false)
+            9 -> Component.text("✖ 未获得该物品的使用资格").color(NamedTextColor.DARK_RED).decoration(TextDecoration.BOLD, true).decoration(TextDecoration.ITALIC, false)
             10 -> Component.text("✖ 此物品仅作为材料").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, true)
             11 -> Component.text("✖ 等级不足").color(NamedTextColor.RED).decoration(TextDecoration.BOLD, true).decoration(TextDecoration.ITALIC, false)
             else -> Component.text("✖ 请放入激活位 [${activeSlotIndex + 1}] 以激活").color(NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)
