@@ -13,22 +13,28 @@ abstract class WaitingPhase(
     private val durationSeconds: Int
 ) : AbstractDungeonPhase(plugin, instance) {
 
-    private var timer: Int = 0
+    // 使用 Tick 计数，而不是秒数
+    private var ticksRemaining: Int = 0
 
     override fun start() {
-        this.timer = durationSeconds
+        // 将秒转换为 Tick (1秒 = 20 Tick)
+        this.ticksRemaining = durationSeconds * 20
         instance.broadcast("§b[集结] 进入等待区，${durationSeconds}秒后开启...")
     }
 
     override fun onTick() {
-        if (timer > 0) {
-            // 每10秒或最后5秒倒计时提示
-            if (timer <= 5 || timer % 10 == 0) {
-                instance.broadcast("§7距离开启还有 $timer 秒")
+        if (ticksRemaining > 0) {
+            // 每 20 Tick (1秒) 提示一次
+            if (ticksRemaining % 20 == 0) {
+                val secondsLeft = ticksRemaining / 20
+                // 只在特定时间点广播，防止刷屏
+                if (secondsLeft <= 5 || secondsLeft % 10 == 0) {
+                    instance.broadcast("§7距离开启还有 $secondsLeft 秒")
+                }
             }
-            timer--
+            ticksRemaining--
         } else {
-            // 时间到，触发抽象方法
+            // 时间到
             onTimeout()
         }
     }

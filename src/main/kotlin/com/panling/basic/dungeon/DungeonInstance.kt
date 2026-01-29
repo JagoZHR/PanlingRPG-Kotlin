@@ -5,6 +5,7 @@ import com.panling.basic.dungeon.phase.AbstractDungeonPhase
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Bukkit
+import org.bukkit.Location
 import org.bukkit.Sound
 import org.bukkit.World
 import org.bukkit.entity.Player
@@ -45,6 +46,8 @@ class DungeonInstance(
         private set
 
     enum class DungeonState { LOADING, RUNNING, ENDING }
+
+    lateinit var centerLocation: Location
 
     init {
         // 初始化玩家列表
@@ -205,7 +208,8 @@ class DungeonInstance(
     fun join(player: Player) {
         players.add(player.uniqueId)
         // 传送到副本出生点
-        val spawn = template.spawnOffset.toLocation(world)
+        // [修改] 计算绝对坐标：中心点 + 偏移量
+        val spawn = centerLocation.clone().add(template.spawnOffset)
         player.teleport(spawn)
         player.sendMessage("§e你加入了副本：${template.displayName}")
     }
