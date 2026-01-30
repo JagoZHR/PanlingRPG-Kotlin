@@ -11,7 +11,6 @@ import java.util.UUID
 
 /**
  * 奖励阶段基类
- * * 自动处理：箱子交互、防重复领取、领奖后自动结算
  */
 abstract class AbstractRewardPhase(
     plugin: PanlingBasic,
@@ -21,36 +20,44 @@ abstract class AbstractRewardPhase(
     // 记录已领奖玩家
     private val lootedPlayers = HashSet<UUID>()
 
+    /**
+     * [可重写配置] 该副本奖励最多可能占用的背包格数
+     * 子类可以重写此值，例如：override val maxRewardSlots = 10
+     */
+    protected open val maxRewardSlots: Int = 5
+
     override fun start() {
         instance.broadcast("§6[奖励] 战斗结束！宝箱已出现。")
         spawnChest()
     }
 
-    /**
-     * [必须实现] 在场景中生成宝箱 (或者特效)
-     */
     abstract fun spawnChest()
-
-    /**
-     * [必须实现] 给玩家发奖
-     */
     abstract fun giveReward(player: Player)
 
     override fun onInteract(event: PlayerInteractEvent) {
         if (event.action != Action.RIGHT_CLICK_BLOCK) return
         val block = event.clickedBlock ?: return
 
-        // 简单判定：只要点击的是箱子或者末影箱，就视为开箱
-        // 子类如果需要更精确的判定（比如坐标判定），可以在这里加逻辑，或者重写此方法
         if (block.type == Material.CHEST || block.type == Material.ENDER_CHEST || block.type == Material.TRAPPED_CHEST) {
 
-            event.isCancelled = true // 阻止原版箱子界面打开
+            event.isCancelled = true // 阻止原版界面
             val player = event.player
 
             if (lootedPlayers.contains(player.uniqueId)) {
                 player.sendMessage("§c你已经领取过奖励了！")
                 return
             }
+
+            // =========================================================
+            // [新增] 背包空间检查逻辑
+            // =========================================================
+            if (getFreeSlots(player) < maxRewardSlots) {
+                player.sendMessage("§c[提示] 背包空间不足！")
+                player.sendMessage("§7请至少预留 $maxRewardSlots 格空位来领取奖励。")
+                player.playSound(player.location, Sound.ENTITY_VILLAGER_NO, 1f, 1f)
+                return // 直接返回，不标记为已领取
+            }
+            // =========================================================
 
             // 发奖
             giveReward(player)
@@ -59,10 +66,21 @@ abstract class AbstractRewardPhase(
             player.playSound(player.location, Sound.BLOCK_CHEST_OPEN, 1f, 1f)
             player.sendMessage("§a领取成功！副本将在 10秒 后关闭。")
 
-            // 检查：如果所有人都领完了，或者有人触发了，就开始倒计时结束副本
-            // 这里简单处理：只要有人领奖，就触发副本胜利结算 (DungeonInstance 会负责倒计时踢人)
-            // 如果你想让每个人都必须领，可以判断 lootedPlayers.size == instance.players.size
             instance.winDungeon()
         }
+    }
+
+    /**
+     * 获取玩家背包剩余空位数 (不包含装备栏和副手)
+     */
+    private fun getFreeSlots(player: Player): Int {
+        var free = 0
+        // storageContents 只包含 0-35 格 (主体+快捷栏)
+        for (item in player.inventory.storageContents) {
+            if (item == null || item.type == Material.AIR) {
+                free++
+            }
+        }
+        return free
     }
 }

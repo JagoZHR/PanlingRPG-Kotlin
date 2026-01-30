@@ -74,6 +74,16 @@ object LoreManager {
             )
         }
 
+        // [新增] 绑定信息显示
+        // 建议放在职业限制/等级限制的下方
+        val boundName = pdc.get(NamespacedKey(plugin, "bound_owner_name"), PersistentDataType.STRING)
+        if (boundName != null) {
+            lore.add(
+                Component.text("灵魂绑定:").color(NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, false)
+                    .append(Component.text(" $boundName").color(NamedTextColor.RED))
+            )
+        }
+
         val reqLevel = pdc.getOrDefault(BasicKeys.FEATURE_REQ_LEVEL, PersistentDataType.INTEGER, 0)
         if (reqLevel > 0) {
             if (!isElement || isMage) {

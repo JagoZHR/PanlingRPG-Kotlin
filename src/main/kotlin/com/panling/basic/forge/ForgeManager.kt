@@ -164,6 +164,29 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
         // 3. 产出物品
         val result = itemManager.createItem(recipe.targetItemId, player)
         if (result != null) {
+            // =========================================================
+            // [新增] 锻造产物自动绑定
+            // =========================================================
+            // 为了防止把锻造出来的消耗品(如药水/材料)也绑定导致无法堆叠，
+            // 建议加一个简单的类型判断。
+            // 假设 ItemManager 会把类型写入 PDC (BasicKeys.ITEM_TYPE_TAG)
+            val meta = result.itemMeta
+            val type = meta?.persistentDataContainer?.get(BasicKeys.ITEM_TYPE_TAG, PersistentDataType.STRING) ?: "UNKNOWN"
+
+            // 定义哪些类型的物品需要绑定 (根据你的需求调整)
+            val needBind = when (type) {
+                "WEAPON", "ARMOR", "ACCESSORY", "FABAO" -> true
+                else -> false // 材料(MATERIAL)、消耗品(CONSUMABLE) 等不绑定
+            }
+
+            if (needBind) {
+                // 调用 ItemManager 的绑定方法
+                itemManager.bindItem(result, player)
+
+                // 可选：给个提示
+                player.sendMessage("§8[提示] 锻造的装备已与你的灵魂绑定。")
+            }
+            // =========================================================
             player.inventory.addItem(result)
             player.sendMessage("§a[锻造] 打造成功: ${recipe.displayName}")
             player.playSound(player.location, Sound.BLOCK_ANVIL_USE, 1f, 1f)

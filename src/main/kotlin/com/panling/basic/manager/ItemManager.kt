@@ -150,6 +150,26 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
         return elements
     }
 
+    /**
+     * [API] 将物品绑定给特定玩家
+     * 会写入 UUID 和 Name，并刷新 Lore
+     */
+    fun bindItem(item: ItemStack, player: Player): ItemStack {
+        val meta = item.itemMeta ?: return item
+        val pdc = meta.persistentDataContainer
+
+        // 写入 NBT
+        pdc.set(NamespacedKey(plugin, "bound_owner_uuid"), PersistentDataType.STRING, player.uniqueId.toString())
+        pdc.set(NamespacedKey(plugin, "bound_owner_name"), PersistentDataType.STRING, player.name)
+
+        item.itemMeta = meta
+
+        // 刷新 Lore 以显示绑定信息
+        LoreManager.updateItemLore(item, player)
+
+        return item
+    }
+
     // === 内部类：物品模板 ===
     inner class ItemTemplate(val id: String, section: ConfigurationSection) {
         val material: Material = Material.valueOf(section.getString("material", "STONE")!!.uppercase())

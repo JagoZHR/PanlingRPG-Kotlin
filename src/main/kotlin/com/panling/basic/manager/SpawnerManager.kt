@@ -190,30 +190,143 @@ class SpawnerManager(
         plugin.logger.info("已恢复 ${depletionSessions.size} 位玩家的枯竭记录。")
     }
 
-    // === 4. 辅助方法 ===
+// === 4. 辅助方法 (核心修复版本) ===
+
+    // === 4. 辅助方法 (防卡墙修复版) ===
 
     private fun findRandomLocAround(center: Location, radius: Double): Location? {
-        for (i in 0 until 10) {
+        val world = center.world ?: return null
+
+        // 增加尝试次数以保证成功率
+        for (i in 0 until 15) {
             val angle = Math.random() * Math.PI * 2
             val dist = Math.random() * radius
-            val loc = center.clone().add(cos(angle) * dist, 0.0, sin(angle) * dist)
 
-            // 安全检查：找最高点
-            val world = loc.world ?: return null
-            val highY = world.getHighestBlockYAt(loc)
+            // 基础坐标 (整数)
+            val xBlock = (center.x + cos(angle) * dist).toInt()
+            val zBlock = (center.z + sin(angle) * dist).toInt()
 
-            if (abs(highY - center.y) > 10) continue
+            val startY = center.blockY
 
-            loc.y = (highY + 1).toDouble()
-            if (isSafeLocation(loc)) return loc
+            // 垂直扫描寻找地面
+            for (dy in 0..10) {
+                // 优先检查中心，然后上下扩散
+                val checkY = if (dy == 0) startY else null // 逻辑占位
+
+                // 检查 +dy
+                var attemptY = startY + dy
+                if (attemptY < world.maxHeight) {
+                    val targetLoc = Location(world, xBlock.toDouble(), attemptY.toDouble(), zBlock.toDouble())
+                    if (isValidSpawnSpot(center, targetLoc)) {
+                        // [核心修复]
+                        // 1. add(0.5, 0.0, 0.5) -> 居中，确保四周有 0.5 的距离，不会卡墙
+                        // 2. add(0.0, 0.2, 0.0) -> 垫高，防止卡在地毯/积雪/不平整地面里
+                        return targetLoc.add(0.5, 0.2, 0.5)
+                    }
+                }
+
+                // 检查 -dy
+                if (dy != 0) {
+                    attemptY = startY - dy
+                    if (attemptY > world.minHeight) {
+                        val targetLoc = Location(world, xBlock.toDouble(), attemptY.toDouble(), zBlock.toDouble())
+                        if (isValidSpawnSpot(center, targetLoc)) {
+                            // [核心修复] 同上
+                            return targetLoc.add(0.5, 0.2, 0.5)
+                        }
+                    }
+                }
+            }
         }
         return null
     }
 
+    /**
+     * 综合判定一个点是否适合刷怪
+     * 包含：物理空间检查 + 视线检查
+     */
+    private fun isValidSpawnSpot(center: Location, loc: Location): Boolean {
+        // 1. 基础物理空间检查 (脚下实心，身体不窒息)
+        if (!isSafeLocation(loc)) return false
+
+        // 2. [新增] 视线检查 (RayTrace)
+        // 原理：从刷怪点中心向目标点发射一条射线。
+        // 如果中间碰到了方块，说明目标点在墙后/地下/夹层里 -> 禁止生成
+        // 忽略流体和草丛，只检测实心方块
+        if (!hasLineOfSight(center, loc)) return false
+
+        return true
+    }
+
     private fun isSafeLocation(loc: Location): Boolean {
-        if (!loc.clone().subtract(0.0, 1.0, 0.0).block.type.isSolid) return false
-        if (loc.block.type.isSolid) return false
-        if (loc.clone().add(0.0, 1.0, 0.0).block.type.isSolid) return false
+        val block = loc.block
+        val below = loc.clone().subtract(0.0, 1.0, 0.0).block
+        val above = loc.clone().add(0.0, 1.0, 0.0).block
+
+        // 1. 脚下必须是实心
+        if (!below.type.isSolid) return false
+
+        // [新增] 2. 脚下不能是栅栏、围墙或活板门 (防止卡在缝隙或骑在墙上)
+        val belowType = below.type.name
+        if (belowType.contains("FENCE") || belowType.contains("WALL") || belowType.contains("TRAPDOOR")) {
+            return false
+        }
+
+        // 3. 身体和头必须是安全的 (非窒息方块)
+        // isOccluding = 是完整的、不透明的方块。如果为 true，肯定会窒息。
+        // 我们要求它必须为 false (比如空气、草、花、雪层)
+        if (block.type.isOccluding) return false
+        if (above.type.isOccluding) return false
+
+        // 4. 拥挤度检查 (保持不变，这很好)
+        var solidNeighbors = 0
+        if (block.getRelative(1, 0, 0).type.isSolid) solidNeighbors++
+        if (block.getRelative(-1, 0, 0).type.isSolid) solidNeighbors++
+        if (block.getRelative(0, 0, 1).type.isSolid) solidNeighbors++
+        if (block.getRelative(0, 0, -1).type.isSolid) solidNeighbors++
+
+        if (solidNeighbors >= 3) return false
+
+        return true
+    }
+
+    /**
+     * [核心] 视线检测
+     * @return true = 视线通畅(在露天/同一房间), false = 被墙挡住(在夹层/隔壁)
+     */
+    private fun hasLineOfSight(start: Location, end: Location): Boolean {
+        val world = start.world ?: return false
+        val startVec = start.toVector().add(org.bukkit.util.Vector(0.0, 0.5, 0.0)) // 抬高一点视线
+        val endVec = end.toVector().add(org.bukkit.util.Vector(0.0, 0.5, 0.0))
+        val direction = endVec.clone().subtract(startVec)
+        val distance = direction.length()
+
+        if (distance < 1.0) return true // 距离极近，直接允许
+
+        // 发射射线
+        val rayTrace = world.rayTraceBlocks(
+            start.clone().add(0.0, 0.5, 0.0), // 起点
+            direction.normalize(),            // 方向
+            distance,                         // 距离
+            org.bukkit.FluidCollisionMode.NEVER, // 忽略水
+            true // ignorePassable = true (忽略草丛、花朵，只检测墙壁)
+        )
+
+        // 如果 rayTrace 为 null，说明中间全是空气 -> 通畅
+        if (rayTrace == null) return true
+
+        // 如果碰到了方块
+        val hitBlock = rayTrace.hitBlock
+        if (hitBlock != null) {
+            // 如果碰到的方块距离目标点非常近 (比如就是目标点脚下的方块)，也可以算通过
+            // 容差设为 1.5 格
+            if (hitBlock.location.distanceSquared(end) < 2.25) {
+                return true
+            }
+            // 否则说明中间有障碍物
+            return false
+        }
+
         return true
     }
 
@@ -347,8 +460,14 @@ class SpawnerManager(
 
                 if (pool.isEmpty()) continue
 
+                // [核心修复] 在这里计算平方！
+                val triggerSq = triggerRadius * triggerRadius
+                val despawnSq = despawnRadius * despawnRadius
+
                 spawnerConfigMap[id] = SpawnerConfig(
-                    id, Location(w, x, y, z), triggerRadius, despawnRadius,
+                    id, Location(w, x, y, z),
+                    triggerSq, // 传入平方值
+                    despawnSq, // 传入平方值
                     pool, max, interval, mode, spawnRadius, worldName,
                     msg, title, sound, depletionThreshold
                 )

@@ -240,12 +240,9 @@ class WoodTrialLogic(private val plugin: PanlingBasic) : DungeonLogicProvider {
             bossBar.name(Component.text("§a灵气充能: ${currentProgress.toInt()}%"))
         }
 
-        // --- 核心修改：分职业发放配方，移除直接资格发放 ---
+        // --- 核心修改：只解锁本职业配方 ---
         private fun win() {
-            // [修复] 如果已经标记结束，直接返回，不再执行后续逻辑
             if (isFinished) return
-
-            // [修复] 立即标记为结束！这将阻止 onTick 继续渲染特效和调用 win
             isFinished = true
 
             instance.players.forEach { Bukkit.getPlayer(it)?.hideBossBar(bossBar) }
@@ -260,32 +257,34 @@ class WoodTrialLogic(private val plugin: PanlingBasic) : DungeonLogicProvider {
                 player.playSound(player.location, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f)
                 instance.broadcast("§a§l试炼通过！§r §e恭喜 ${player.name} 获得了二阶装备锻造资格！")
 
-                // 2. [核心简化] 一键解锁所有 T2 配方
-                // 你的 GUI 会自动过滤掉非本职业的，所以这里全给也没问题！
-                // 假设所有 T2 配方的 ID 都包含 "_t2" 或者 "_tier2"
+                // 1. 获取玩家职业
+                val playerClass = plugin.playerDataManager.getPlayerClass(player)
+
+                // 2. 智能筛选并解锁
+                val allRecipes = plugin.forgeManager.getAllRecipes()
                 var unlockedCount = 0
 
-                // 遍历 ForgeManager 中加载的所有配方
-                // 这里的 recipes 是私有的，你需要去 ForgeManager 加一个 getAllRecipes() 方法
-                // 或者更简单的：既然你手动配置了配方，你肯定知道 T2 配方的特征
-
-                // [方案 A] 通过 ForgeManager 新增的 API 获取所有配方 (推荐)
-                val allRecipes = plugin.forgeManager.getAllRecipes()
                 allRecipes.forEach { recipe ->
-                    // 假设你的 ID 命名规范是 "sword_t2", "armor_t2" 等
+                    // 筛选 T2 配方
                     if (recipe.id.contains("_t2") || recipe.id.contains("_tier2")) {
-                        if (!plugin.forgeManager.hasUnlockedRecipe(player, recipe.id)) {
-                            plugin.forgeManager.unlockRecipe(player, recipe.id)
-                            unlockedCount++
+
+                        // [关键修复] 检查配方的产物是否符合玩家职业
+                        // 利用 ItemManager 现有的判断逻辑
+                        if (plugin.itemManager.isItemAllowedForClass(recipe.targetItemId, playerClass)) {
+
+                            if (!plugin.forgeManager.hasUnlockedRecipe(player, recipe.id)) {
+                                plugin.forgeManager.unlockRecipe(player, recipe.id)
+                                unlockedCount++
+                            }
                         }
                     }
                 }
 
                 if (unlockedCount > 0) {
-                    player.sendMessage("§b[系统] 你领悟了二阶锻造配方！")
-                    player.sendMessage("§7提示：请前往锻造台查看新配方。")
+                    player.sendMessage("§b[系统] 你领悟了 ${unlockedCount} 个二阶锻造配方！")
                 } else {
-                    player.sendMessage("§7[系统] 你已经学会了相关配方。")
+                    // 如果因为过滤（比如已经全学了）导致没有新解锁，给个温和的提示
+                    player.sendMessage("§7[系统] 你的锻造技艺已至瓶颈，暂无新配方可领悟。")
                 }
             }
 
