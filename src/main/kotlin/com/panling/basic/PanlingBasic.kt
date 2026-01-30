@@ -173,6 +173,9 @@ class PanlingBasic : JavaPlugin() {
             registerEvents(MobListener(mobManager), this@PanlingBasic)
             registerEvents(WorldTriggerListener(this@PanlingBasic), this@PanlingBasic)
             registerEvents(DungeonListener(this@PanlingBasic), this@PanlingBasic)
+            // [新增] 注册副本入口 UI 监听器
+            // 确保引入 import com.panling.basic.listener.DungeonEntryListener
+            registerEvents(DungeonEntryListener(this@PanlingBasic), this@PanlingBasic)
         }
 
         // 延迟修复任务

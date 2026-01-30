@@ -216,6 +216,26 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
         logicRegistry[templateId] = factory
     }
 
+    // ==========================================
+    // [新增] 外部 API 方法
+    // ==========================================
+
+    /**
+     * 获取指定 ID 的副本模板
+     * 供 DungeonEntryUI 和 SetTriggerCommand 使用
+     */
+    fun getTemplate(id: String): DungeonTemplate? {
+        return templates[id]
+    }
+
+    /**
+     * 获取所有加载的副本 ID 列表
+     * 供指令 Tab 补全使用
+     */
+    fun getTemplateIds(): List<String> {
+        return templates.keys.toList()
+    }
+
     private fun loadTemplates() {
         templates.clear()
         val folder = File(plugin.dataFolder, "dungeons")

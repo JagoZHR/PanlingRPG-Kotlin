@@ -187,7 +187,7 @@ class MenuManager(
         val fullInv = Bukkit.createInventory(MenuHolder(), 27, Component.text("§8角色详情与设置"))
 
         // 1. 背景板
-        val glass = ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE)
+        val glass = ItemStack(Material.BROWN_STAINED_GLASS_PANE)
         val gMeta = glass.itemMeta
         gMeta.displayName(Component.empty())
         glass.itemMeta = gMeta

@@ -370,6 +370,28 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
         return false
     }
 
+    // =========================================================
+    // [NEW] 等级管理 (直接对接原版 XP 等级)
+    // 封装在这里是为了代码风格统一，方便未来可能的修改
+    // =========================================================
+
+    fun getLevel(player: Player): Int {
+        return player.level
+    }
+
+    fun setLevel(player: Player, level: Int) {
+        player.level = level
+    }
+
+    fun addLevel(player: Player, amount: Int) {
+        player.giveExpLevels(amount)
+    }
+
+    // 顺便加个判断方法，写逻辑时更方便
+    fun hasLevel(player: Player, required: Int): Boolean {
+        return player.level >= required
+    }
+
     // === 被动技能 ===
     enum class PassiveTrigger { ATTACK, HIT, CONSTANT }
 

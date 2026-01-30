@@ -48,7 +48,8 @@ class LocationManager(private val plugin: PanlingBasic) : Reloadable {
     enum class TriggerType {
         CLASS,    // 转职
         RACE,     // 转种族
-        TELEPORT  // 传送
+        TELEPORT,  // 传送
+        DUNGEON
     }
 
     data class TriggerData(val type: TriggerType, val value: String)
@@ -136,6 +137,18 @@ class LocationManager(private val plugin: PanlingBasic) : Reloadable {
                 player.playSound(player.location, Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f)
             } else {
                 player.sendMessage("§c[错误] 未找到传送点: $value")
+            }
+        }
+
+        // 4. [新增] 副本入口逻辑
+        handlers[TriggerType.DUNGEON] = TriggerHandler { player, value ->
+            // 校验副本是否存在
+            if (plugin.dungeonManager.getTemplate(value) != null) {
+                // 打开我们在上一轮对话中设计的 GUI
+                // 请确保 DungeonEntryUI 类已存在于 com.panling.basic.ui 包下
+                com.panling.basic.ui.DungeonEntryUI(plugin).open(player, value)
+            } else {
+                player.sendMessage("§c[错误] 副本配置不存在: $value")
             }
         }
     }

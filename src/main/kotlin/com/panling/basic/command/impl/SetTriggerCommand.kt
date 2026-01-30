@@ -9,10 +9,7 @@ import org.bukkit.command.CommandSender
 
 class SetTriggerCommand(plugin: PanlingBasic) : SubCommand(plugin) {
 
-    // 对应基类的 abstract val name
     override val name: String = "settrigger"
-
-    // 基类默认 isPlayerOnly 为 true，满足获取玩家准星方块的需求
 
     override fun perform(sender: CommandSender, args: Array<out String>) {
         val player = asPlayer(sender) ?: return
@@ -22,7 +19,6 @@ class SetTriggerCommand(plugin: PanlingBasic) : SubCommand(plugin) {
             return
         }
 
-        // 获取准星指向的方块（距离5格）
         val targetBlock = player.getTargetBlockExact(5)
         if (targetBlock == null) {
             msg(sender, "§c请看着一个方块！")
@@ -32,46 +28,52 @@ class SetTriggerCommand(plugin: PanlingBasic) : SubCommand(plugin) {
         try {
             val type = LocationManager.TriggerType.valueOf(args[0].uppercase())
 
-            // 智能大小写处理：地标名保留原样，其他（枚举）转大写
-            val value = if (type == LocationManager.TriggerType.TELEPORT) {
-                args[1]
+            // 智能大小写处理
+            val value = if (type == LocationManager.TriggerType.TELEPORT || type == LocationManager.TriggerType.DUNGEON) {
+                args[1] // 副本ID和地标名通常是大小写敏感或小写的，保留原样
             } else {
                 args[1].uppercase()
             }
 
-            // 校验逻辑：验证职业或种族是否存在
+            // 校验逻辑
             when (type) {
                 LocationManager.TriggerType.CLASS -> PlayerClass.valueOf(value)
                 LocationManager.TriggerType.RACE -> PlayerRace.valueOf(value)
-                else -> { /* TELEPORT 不需要额外枚举校验 */ }
+                LocationManager.TriggerType.DUNGEON -> {
+                    // [新增] 校验副本ID是否存在
+                    if (plugin.dungeonManager.getTemplate(value) == null) {
+                        msg(sender, "§c副本 ID '$value' 不存在！")
+                        return
+                    }
+                }
+                else -> { /* TELEPORT 运行时校验 */ }
             }
 
-            // 调用 LocationManager 存储触发器
             plugin.locationManager.addTrigger(targetBlock.location, type, value)
 
             msg(sender, "§a成功设置 [$type] 触发器！")
             msg(sender, "§7交互此方块将触发: $value")
 
         } catch (e: IllegalArgumentException) {
-            msg(sender, "§c错误：类型或值无效。")
+            msg(sender, "§c错误：类型无效或参数不匹配。")
         }
     }
 
     override fun getTabComplete(sender: CommandSender, args: Array<out String>): List<String> {
         return when (args.size) {
-            // 参数 1：补全触发器类型
             1 -> LocationManager.TriggerType.values()
                 .map { it.name }
                 .filter { it.startsWith(args[0].uppercase()) }
 
-            // 参数 2：根据类型补全具体的值
             2 -> try {
                 val type = LocationManager.TriggerType.valueOf(args[0].uppercase())
                 when (type) {
                     LocationManager.TriggerType.CLASS -> PlayerClass.values().map { it.name }
                     LocationManager.TriggerType.RACE -> PlayerRace.values().map { it.name }
-                    // 调用 LocationManager 的 getWaypointNames() 方法
                     LocationManager.TriggerType.TELEPORT -> plugin.locationManager.getWaypointNames().toList()
+                    // [新增] 补全副本 ID (需要 DungeonManager 提供 getTemplateIds 方法)
+                    // 假设 plugin.dungeonManager.templates.keys 是可访问的
+                    LocationManager.TriggerType.DUNGEON -> plugin.dungeonManager.getTemplateIds()
                 }
             } catch (e: Exception) {
                 emptyList()

@@ -28,11 +28,18 @@ class SetEntityTriggerCommand(plugin: PanlingBasic) : SubCommand(plugin) {
 
         try {
             val type = LocationManager.TriggerType.valueOf(args[0].uppercase())
-            val value = if (type == LocationManager.TriggerType.TELEPORT) args[1] else args[1].uppercase()
+            val value = if (type == LocationManager.TriggerType.TELEPORT || type == LocationManager.TriggerType.DUNGEON) args[1] else args[1].uppercase()
 
             when (type) {
                 LocationManager.TriggerType.CLASS -> PlayerClass.valueOf(value)
                 LocationManager.TriggerType.RACE -> PlayerRace.valueOf(value)
+                LocationManager.TriggerType.DUNGEON -> {
+                    // [新增] 校验副本ID
+                    if (plugin.dungeonManager.getTemplate(value) == null) {
+                        msg(sender, "§c副本 ID '$value' 不存在！")
+                        return
+                    }
+                }
                 else -> { /* 其他类型 */ }
             }
 
@@ -67,6 +74,7 @@ class SetEntityTriggerCommand(plugin: PanlingBasic) : SubCommand(plugin) {
                         LocationManager.TriggerType.RACE -> PlayerRace.values().map { it.name }
                         // 修正点：显式调用方法 getWaypointNames() 并转为 List
                         LocationManager.TriggerType.TELEPORT -> plugin.locationManager.getWaypointNames().toList()
+                        LocationManager.TriggerType.DUNGEON -> plugin.dungeonManager.getTemplateIds()
                         else -> emptyList()
                     }
                 } catch (e: Exception) {
