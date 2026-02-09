@@ -42,6 +42,8 @@ class StatCalculator(
         const val STATUS_NO_QUALIFICATION = 9
         const val STATUS_MATERIAL_ONLY = 10
         const val STATUS_LEVEL_TOO_LOW = 11
+        // [新增] 状态码：非物品拥有者
+        const val STATUS_NOT_OWNER = 12
         const val STATUS_INACTIVE_SLOT = 0
     }
 
@@ -267,6 +269,13 @@ class StatCalculator(
         pc: PlayerClass
     ): Int {
         if (item == null || !item.hasItemMeta()) return -1
+
+        // [新增] 1. 优先检查绑定权
+        // 如果不是主人，直接返回 STATUS_NOT_OWNER
+        // 这会导致 getAllActiveItems 忽略此物品（不加属性），且技能触发检查也会失败
+        if (!itemManager.checkItemOwner(item, player)) {
+            return STATUS_NOT_OWNER
+        }
 
         if (!qualificationManager.checkQualification(player, item)) return STATUS_NO_QUALIFICATION
 

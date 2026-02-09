@@ -170,6 +170,27 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
         return item
     }
 
+    /**
+     * [新增] 检查物品绑定状态
+     * @return true = 属于该玩家 或 无绑定; false = 已绑定给其他人
+     */
+    fun checkItemOwner(item: ItemStack?, player: Player?): Boolean {
+        if (item == null || !item.hasItemMeta() || player == null) return true
+        val pdc = item.itemMeta!!.persistentDataContainer
+
+        // 假设绑定的 Key 是 "bound_owner_uuid"
+        // 你需要确保和 binditem 指令存入的 Key 一致
+        val boundKey = NamespacedKey(plugin, "bound_owner_uuid")
+        val boundUuidStr = pdc.get(boundKey, PersistentDataType.STRING)
+
+        // 1. 如果没有绑定信息，视为验证通过
+        if (boundUuidStr.isNullOrEmpty()) return true
+
+        // 2. 如果有绑定信息，比较 UUID
+        // 可选：允许 OP 无视绑定 (如果不想要此功能可删去 || player.isOp)
+        return boundUuidStr == player.uniqueId.toString() || player.isOp
+    }
+
     // === 内部类：物品模板 ===
     inner class ItemTemplate(val id: String, section: ConfigurationSection) {
         val material: Material = Material.valueOf(section.getString("material", "STONE")!!.uppercase())
