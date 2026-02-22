@@ -222,6 +222,8 @@ class WoodTrialLogic(private val plugin: PanlingBasic) : DungeonLogicProvider {
             // 攻击力归零 (靠击退恶心人)
             mob.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 1.0
 
+            mob.lootTable = org.bukkit.loot.LootTables.VEX.lootTable
+
             // 装备：击退棒子
             val stick = ItemStack(Material.STICK)
             val meta = stick.itemMeta

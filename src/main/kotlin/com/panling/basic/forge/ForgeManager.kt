@@ -214,7 +214,7 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
         // 使用 filterNotNull 过滤空物品，filter 过滤有效材料
         player.inventory.contents
             .filterNotNull()
-            .filter { isValidMaterial(it, targetId) }
+            .filter { isValidMaterial(player, it, targetId) }
             .forEach { count += it.amount }
         return count >= amountNeeded
     }
@@ -227,7 +227,7 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
             if (item == null) continue
             if (remaining <= 0) break
 
-            if (isValidMaterial(item, targetId)) {
+            if (isValidMaterial(player, item, targetId)) {
                 val stackAmount = item.amount
                 if (stackAmount > remaining) {
                     item.amount = stackAmount - remaining
@@ -240,11 +240,17 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
         }
     }
 
-    private fun isValidMaterial(item: ItemStack?, targetId: String): Boolean {
+    // [修改] 增加 player 参数
+    private fun isValidMaterial(player: Player, item: ItemStack?, targetId: String): Boolean {
         if (item == null || !item.hasItemMeta()) return false
-        // 使用 Kotlin 的可空链式调用
+
+        // 1. 检查 ID 是否匹配 (原有逻辑)
         val id = item.itemMeta?.persistentDataContainer?.get(BasicKeys.ITEM_ID, PersistentDataType.STRING)
-        return targetId == id
+        if (targetId != id) return false
+
+        // 2. [新增] 检查物品绑定状态
+        // 只有当物品归属权通过 (是该玩家的 或 未绑定) 才视为有效材料
+        return itemManager.checkItemOwner(item, player)
     }
     /**
      * [API] 检查玩家是否已解锁某配方

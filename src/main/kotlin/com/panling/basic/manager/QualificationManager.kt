@@ -61,7 +61,7 @@ class QualificationManager(private val dataManager: PlayerDataManager) {
      */
     fun unlockItem(player: Player, itemId: String) {
         dataManager.addUnlockedItem(player, itemId)
-        player.sendMessage("§e[系统] 你获得了珍稀装备的使用资格: $itemId")
+        //player.sendMessage("§e[系统] 你获得了珍稀装备的使用资格: $itemId")
     }
 
     /**

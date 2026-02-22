@@ -131,12 +131,15 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
             indexInstanceMap.remove(indexToRemove)
         }
 
-        val lobby = Bukkit.getWorlds()[0].spawnLocation
+        // [修复] 获取退本位置：优先使用该副本配置的 exitLoc，如果没有配置则退回到主世界出生点
+        val exitLocation = instance.template.exitLoc ?: Bukkit.getWorlds()[0].spawnLocation
+
         instance.players.forEach {
             val p = Bukkit.getPlayer(it)
             // 先清理Map，防止TP时死循环
             playerInstanceMap.remove(it)
-            p?.teleport(lobby)
+            p?.teleport(exitLocation)
+            p?.sendMessage("§e副本已关闭，你已返回原世界。")
         }
     }
 
