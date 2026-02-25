@@ -19,7 +19,7 @@ abstract class WaitingPhase(
     override fun start() {
         // 将秒转换为 Tick (1秒 = 20 Tick)
         this.ticksRemaining = durationSeconds * 20
-        instance.broadcast("§b[集结] 进入等待区，${durationSeconds}秒后开启...")
+            //instance.broadcast("§b副本将于${durationSeconds}秒后开启...")
     }
 
     override fun onTick() {

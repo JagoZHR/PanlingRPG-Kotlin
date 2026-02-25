@@ -190,9 +190,9 @@ class WoodTrialLogic(private val plugin: PanlingBasic) : DungeonLogicProvider {
         private fun spawnPusherMob() {
             // 限制最大怪物数量 (比如 8 只)
             // 这是一个简单的计数，实际可以通过 AbstractCombatPhase 的 activeMobUuids 来判断
-            val nearbyEntities = beamLoc.world!!.getNearbyEntities(beamLoc, 30.0, 10.0, 30.0)
-            val mobCount = nearbyEntities.count { it is Zombie }
-            if (mobCount >= 8) return
+            //val nearbyEntities = beamLoc.world!!.getNearbyEntities(beamLoc, 30.0, 10.0, 30.0)
+            //val mobCount = nearbyEntities.count { it is Zombie }
+            //if (mobCount >= 8) return
 
             // 在玩家周围随机生成
             val randomPlayer = instance.players.mapNotNull { Bukkit.getPlayer(it) }.randomOrNull() ?: return

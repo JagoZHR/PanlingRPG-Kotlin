@@ -41,7 +41,7 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
 
         playerDataManager.addUnlockedRecipe(player, recipeId)
         player.sendMessage("§e[系统] 你领悟了新的锻造配方: ${recipe.displayName}")
-        player.playSound(player.location, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f)
+        //player.playSound(player.location, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f)
     }
 
     // [核心修改] 替换为 NIO 多文件加载逻辑

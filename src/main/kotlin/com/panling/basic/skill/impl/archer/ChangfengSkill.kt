@@ -35,7 +35,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 class ChangfengSkill(private val plugin: PanlingBasic) :
-    AbstractSkill("CHANGFENG", "孤鹜齐飞", PlayerClass.ARCHER), ArcherSkillStrategy {
+    AbstractSkill("CHANGFENG", "群雁归巢", PlayerClass.ARCHER), ArcherSkillStrategy {
 
     // [修复冲突] 显式重写冲突的方法
     override fun onProjectileHit(event: ProjectileHitEvent, ctx: SkillContext) {
