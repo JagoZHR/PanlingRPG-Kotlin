@@ -41,6 +41,9 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
     // [NEW] 被动技能缓存
     private val passiveCache = HashMap<UUID, MutableMap<PassiveTrigger, MutableList<CachedPassive>>>()
 
+    // [NEW] 种族全收集缓存：玩家UUID -> 已解锁的种族集合
+    private val unlockedRacesCache = HashMap<UUID, MutableSet<PlayerRace>>()
+
     // === 核心：缓存清理 (脏标记) ===
     // 当背包变动、穿脱装备、属性变化时调用
     fun clearStatCache(player: Player) {
@@ -67,6 +70,7 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
         quiverCache.remove(uuid)
         activeItemIdCache.remove(uuid)
         slotHoldStartTime.remove(uuid)
+        unlockedRacesCache.remove(uuid) // [NEW] 清理种族试炼缓存
     }
 
     // === 属性缓存操作 ===
@@ -210,10 +214,89 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
         return (System.currentTimeMillis() - startTime) / 1000.0
     }
 
+    // =========================================================
+    // [修改] 种族管理与试炼解锁系统
+    // =========================================================
+
     fun setPlayerRace(player: Player, race: PlayerRace) {
         player.persistentDataContainer.set(BasicKeys.DATA_RACE, PersistentDataType.STRING, race.name)
         raceCache[player.uniqueId] = race
+        // [NEW] 当玩家变成某个种族时，自动将该种族加入“已解锁试炼”中
+        unlockRace(player, race)
         clearStatCache(player)
+    }
+
+    // [API] 移除/重新锁定某个种族的试炼（主要用于测试和重置）
+    fun lockRace(player: Player, race: PlayerRace) {
+        // 防止玩家把自己的“本体基础种族”给删了（因为获取时有保底机制，删了也会自动加回来，不如直接拦截提示）
+        if (race == getPlayerRace(player)) {
+            player.sendMessage("§c[系统] 无法锁定你的本体种族天赋！")
+            return
+        }
+
+        val currentUnlocked = getUnlockedRaces(player).toMutableSet()
+        if (currentUnlocked.contains(race)) {
+            currentUnlocked.remove(race)
+
+            // 存入 NBT
+            val pdcKey = NamespacedKey(plugin, "data_unlocked_races")
+            if (currentUnlocked.isEmpty()) {
+                player.persistentDataContainer.remove(pdcKey)
+            } else {
+                player.persistentDataContainer.set(pdcKey, PersistentDataType.STRING, currentUnlocked.joinToString(",") { it.name })
+            }
+
+            // 更新缓存并触发属性重算 (种族变了属性必须刷新)
+            unlockedRacesCache[player.uniqueId] = currentUnlocked
+            clearStatCache(player)
+        }
+    }
+
+    // (getPlayerRace remains the same)
+
+    // [NEW API] 获取玩家当前已解锁（已通过试炼）的所有种族
+    fun getUnlockedRaces(player: Player): Set<PlayerRace> {
+        val uuid = player.uniqueId
+        if (unlockedRacesCache.containsKey(uuid)) return unlockedRacesCache[uuid]!!
+
+        val pdcKey = NamespacedKey(plugin, "data_unlocked_races")
+        val dataStr = player.persistentDataContainer.get(pdcKey, PersistentDataType.STRING)
+        val unlockedRaces = HashSet<PlayerRace>()
+
+        if (!dataStr.isNullOrEmpty()) {
+            dataStr.split(",").forEach {
+                try {
+                    unlockedRaces.add(PlayerRace.valueOf(it))
+                } catch (ignored: Exception) {}
+            }
+        }
+
+        // 保底：即使 NBT 丢了，玩家的基础种族也算作自动解锁
+        unlockedRaces.add(getPlayerRace(player))
+
+        unlockedRacesCache[uuid] = unlockedRaces
+        return unlockedRaces
+    }
+
+    // [NEW API] 解锁某个种族的试炼（加成）
+    fun unlockRace(player: Player, race: PlayerRace) {
+        val currentUnlocked = getUnlockedRaces(player).toMutableSet()
+        if (!currentUnlocked.contains(race)) {
+            currentUnlocked.add(race)
+
+            // 存入 NBT
+            val pdcKey = NamespacedKey(plugin, "data_unlocked_races")
+            player.persistentDataContainer.set(pdcKey, PersistentDataType.STRING, currentUnlocked.joinToString(",") { it.name })
+
+            // 更新缓存并触发属性重算 (种族变了属性必须刷新)
+            unlockedRacesCache[player.uniqueId] = currentUnlocked
+            clearStatCache(player)
+        }
+    }
+
+    // [NEW API] 检查是否拥有某族试炼加成
+    fun hasUnlockedRace(player: Player, race: PlayerRace): Boolean {
+        return getUnlockedRaces(player).contains(race)
     }
 
     fun getPlayerRace(player: Player): PlayerRace {

@@ -162,11 +162,14 @@ class StatCalculator(
             }
         }
 
-        // 4. 种族加成
-        val race = dataManager.getPlayerRace(player)
-        if (race != PlayerRace.NONE) {
-            val raceBonus = race.calculateBonus(player.level)
-            // 假设 PlayerRace.bonusStats 是 List<NamespacedKey>
+        // 4. 种族加成 (全收集试炼系统)
+        val unlockedRaces = dataManager.getUnlockedRaces(player)
+        val level = player.level // Or dataManager.getLevel(player) if you prefer consistency
+
+        for (race in unlockedRaces) {
+            if (race == PlayerRace.NONE) continue
+
+            val raceBonus = race.calculateBonus(level)
             for (key in race.bonusStats) {
                 baseStats.merge(key, raceBonus) { a, b -> a + b }
             }
