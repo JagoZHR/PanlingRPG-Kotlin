@@ -204,7 +204,7 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
         var accessorySlot: Int? = if (section.contains("accessory_slot")) section.getInt("accessory_slot") - 1 else null
 
         val attackSpeed: Double? = if (section.contains("attack_speed")) section.getDouble("attack_speed") else null
-        val rarity: Rarity? = Rarity.safeValueOf(section.getString("rarity"))
+        val rarity: Rarity? = Rarity.parse(section.get("rarity"))
         val description: List<String> = section.getStringList("description")
         val customModelData: Int? = if (section.contains("model_data")) section.getInt("model_data") else null
         val cooldown: Double? = if (section.contains("cooldown")) section.getDouble("cooldown") else null

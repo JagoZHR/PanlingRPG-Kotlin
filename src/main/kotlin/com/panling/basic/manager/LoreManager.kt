@@ -51,11 +51,13 @@ object LoreManager {
         if (!isElement) {
             val rarityName = pdc.get(BasicKeys.ITEM_RARITY, PersistentDataType.STRING)
             if (rarityName != null) {
-                val rarity = Rarity.safeValueOf(rarityName)
-                lore.add(
-                    Component.text("稀有度:").color(rarity.color).decoration(TextDecoration.ITALIC, false)
-                        .append(Component.text(getRarityStars(rarity)).color(rarity.color))
-                )
+                val rarity = Rarity.parse(rarityName)
+                if (rarity != null) {
+                    lore.add(
+                        Component.text("稀有度:").color(rarity.color).decoration(TextDecoration.ITALIC, false)
+                            .append(Component.text(getRarityStars(rarity)).color(rarity.color))
+                    )
+                }
             }
         }
 
@@ -370,7 +372,10 @@ object LoreManager {
         }
     }
 
-    private fun getRarityStars(rarity: Rarity): String {
+    private fun getRarityStars(rarity: Rarity?): String {
+        // [新增] 如果传入的是 null，直接返回空字符串
+        if (rarity == null) return ""
+
         return when (rarity.name) {
             "BROKEN" -> "★"
             "COMMON" -> "★★"

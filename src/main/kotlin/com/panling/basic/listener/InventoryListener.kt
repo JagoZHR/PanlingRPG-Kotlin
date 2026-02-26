@@ -17,6 +17,8 @@ import org.bukkit.event.player.*
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.java.JavaPlugin
+import org.bukkit.scheduler.BukkitTask
+import java.util.UUID
 
 class InventoryListener(
     private val plugin: JavaPlugin,
@@ -25,33 +27,54 @@ class InventoryListener(
     private val statCalculator: StatCalculator
 ) : Listener {
 
+    // [核心优化] 用于存储玩家待执行的刷新任务 (防抖机制)
+    private val pendingUpdates = HashMap<UUID, BukkitTask>()
+
     fun refreshPlayerStatus(player: Player) {
-        dataManager.clearStatCache(player)
-        updateInventoryLore(player)
+        val uuid = player.uniqueId
+
+        // 1. 如果该玩家已经有排队在下一 Tick 执行的任务，取消它
+        pendingUpdates[uuid]?.cancel()
+
+        // 2. 安排一个新的任务，强制在下一 Tick (1L) 执行
+        // 这样做的好处是：Bukkit 会先处理完物品移动的逻辑，我们再去读取背包，读到的绝对是最终结果。
+        val task = Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+            // 确保玩家在这 1 Tick 内没有下线，防止报错
+            if (!player.isOnline) return@Runnable
+
+            // 执行核心清理与计算
+            dataManager.clearStatCache(player)
+            performFullInventoryUpdate(player)
+
+            // 任务执行完毕，从 Map 中移除自己
+            pendingUpdates.remove(uuid)
+        }, 1L)
+
+        // 3. 记录这个新任务
+        pendingUpdates[uuid] = task
     }
 
-    private fun updateInventoryLore(player: Player) {
-        Bukkit.getScheduler().runTask(plugin, Runnable {
-            // 获取当前激活槽位和职业
-            val activeSlot = dataManager.getActiveSlot(player) // 假设 getter 存在
-            val playerClass = dataManager.getPlayerClass(player)
-            val contents = player.inventory.contents
+    // 将你原本在 updateInventoryLore 里的业务逻辑单独抽离出来
+    private fun performFullInventoryUpdate(player: Player) {
+        // 获取当前激活槽位和职业
+        val activeSlot = dataManager.getActiveSlot(player) // 假设 getter 存在
+        val playerClass = dataManager.getPlayerClass(player)
+        val contents = player.inventory.contents
 
-            // 使用 forEachIndexed 替代传统的 for 循环
-            contents.forEachIndexed { index, itemStack ->
-                if (itemStack != null) {
-                    checkAndRefresh(player, itemStack, index, activeSlot, playerClass)
-                }
+        // 使用 forEachIndexed 替代传统的 for 循环
+        contents.forEachIndexed { index, itemStack ->
+            if (itemStack != null) {
+                checkAndRefresh(player, itemStack, index, activeSlot, playerClass)
             }
+        }
 
-            // [修改] 调用 StatCalculator 的同步方法
-            statCalculator.syncPlayerAttributes(player)
-        })
+        // 调用 StatCalculator 的同步方法 (此时玩家身上穿的已经是最终装备)
+        statCalculator.syncPlayerAttributes(player)
     }
 
     /**
-     * 核心修复：单一事实来源 (Single Source of Truth)
-     * UI层 (InventoryListener) 不应包含任何业务判断逻辑，必须全权委托给 逻辑层 (StatCalculator)。
+     * 单一事实来源 (Single Source of Truth)
+     * UI层 (InventoryListener) 不应包含任何业务判断逻辑，全权委托给 逻辑层 (StatCalculator)。
      */
     private fun checkAndRefresh(
         player: Player,
@@ -69,13 +92,12 @@ class InventoryListener(
         val meta = item.itemMeta ?: return
         val pdc = meta.persistentDataContainer
 
-        // === 新增：检查是否为材料 ===
+        // === 检查是否为材料 ===
         val type = pdc.get(BasicKeys.ITEM_TYPE_TAG, PersistentDataType.STRING)
 
         if ("MATERIAL" == type) {
             // 只有当玩家把它放在快捷栏 (0-8) 或者副手 (40) 时才提示
             if (slotIndex in 0..8 || slotIndex == 40) {
-                // 需要在 LoreManager/StatCalculator 加这个状态常量
                 LoreManager.refreshStatus(item, StatCalculator.STATUS_MATERIAL_ONLY, activeSlot, 0)
                 return
             }
@@ -85,7 +107,6 @@ class InventoryListener(
         }
 
         // 2. 询问 Calculator 获取状态码
-        // 任何资格判断、槽位判断、职业判断都在 getValidationStatus 内部完成
         val status = statCalculator.getValidationStatus(player, item, slotIndex, activeSlot, playerClass)
 
         // 3. 获取法宝目标槽位 (仅用于显示 Status 8 时的提示信息)
@@ -102,10 +123,7 @@ class InventoryListener(
         if (item == null || !item.hasItemMeta()) return false
         val pdc = item.itemMeta?.persistentDataContainer ?: return false
 
-        // 只要是本插件管理的物品，都应该有 ID
         if (pdc.has(BasicKeys.ITEM_ID, PersistentDataType.STRING)) return true
-
-        // 兼容旧物品或仅有属性的物品
         return pdc.has(BasicKeys.ATTR_PHYSICAL_DAMAGE, PersistentDataType.DOUBLE)
     }
 
@@ -141,6 +159,13 @@ class InventoryListener(
 
     @EventHandler
     fun onQuit(event: PlayerQuitEvent) {
-        dataManager.onPlayerQuit(event.player)
+        val player = event.player
+        val uuid = player.uniqueId
+
+        // [新增防漏] 玩家退出时，如果有尚未执行的结算任务，直接取消防止内存泄漏或报错
+        pendingUpdates[uuid]?.cancel()
+        pendingUpdates.remove(uuid)
+
+        dataManager.onPlayerQuit(player)
     }
 }
