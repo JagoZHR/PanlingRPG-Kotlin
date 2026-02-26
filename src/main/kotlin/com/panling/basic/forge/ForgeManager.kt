@@ -18,7 +18,7 @@ import java.util.HashMap
 
 class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
 
-    private val recipes = HashMap<String, ForgeRecipe>()
+    private val recipes = LinkedHashMap<String, ForgeRecipe>()
 
     init {
         // [NEW] 注册到重载管理器
@@ -70,6 +70,7 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
         // Kotlin 的 walk 扩展函数非常强大
         folder.walk()
             .filter { it.isFile && it.name.endsWith(".yml") }
+            .sortedBy { it.name } // <--- 关键：按文件名排序
             .forEach { loadSingleFile(it) }
 
         plugin.logger.info("Loaded ${recipes.size} forge recipes.")
@@ -104,7 +105,7 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
             ForgeCategory.OTHER
         }
 
-        val mats = HashMap<String, Int>()
+        val mats = LinkedHashMap<String, Int>()
         val matSection = section.getConfigurationSection("materials")
         matSection?.getKeys(false)?.forEach { matId ->
             mats[matId] = matSection.getInt(matId)
