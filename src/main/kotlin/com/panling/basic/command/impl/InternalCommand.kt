@@ -35,6 +35,12 @@ class InternalCommand(plugin: PanlingBasic) : SubCommand(plugin) {
                     plugin.shopManager.openShop(player, args[1])
                 }
             }
+
+            "open_barter" -> {
+                if (args.size >= 2) {
+                    plugin.barterManager.openBarter(player, args[1])
+                }
+            }
         }
     }
 

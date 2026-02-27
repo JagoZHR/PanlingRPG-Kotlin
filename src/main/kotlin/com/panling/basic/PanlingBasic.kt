@@ -8,10 +8,12 @@ import com.panling.basic.listener.*
 import com.panling.basic.manager.*
 import com.panling.basic.quest.QuestLoader
 import com.panling.basic.quest.feature.QuestNpcFeature
+import com.panling.basic.shop.feature.BarterNpcFeature
 import com.panling.basic.shop.feature.ShopNpcFeature
 import com.panling.basic.ui.BankUI
 import com.panling.basic.ui.QuestUI
 import com.panling.basic.ui.SetUI
+import com.panling.basic.ui.ShopUI
 import org.bukkit.plugin.java.JavaPlugin
 
 class PanlingBasic : JavaPlugin() {
@@ -48,6 +50,7 @@ class PanlingBasic : JavaPlugin() {
     lateinit var forgeManager: ForgeManager
     lateinit var dialogManager: DialogManager
     lateinit var shopManager: ShopManager
+    lateinit var barterManager: BarterManager
     lateinit var reloadManager: ReloadManager
     lateinit var dungeonManager: DungeonManager
     lateinit var worldScriptManager: WorldScriptManager
@@ -140,11 +143,13 @@ class PanlingBasic : JavaPlugin() {
         dialogManager = DialogManager(this)
         npcManager = NpcManager(this)
         questManager = QuestManager(this)
+        barterManager = BarterManager(this)
         questUI = QuestUI(this, questManager)
 
         // 注册 NPC Feature
         dialogManager.registerFeature(QuestNpcFeature(questManager))
         dialogManager.registerFeature(ShopNpcFeature())
+        dialogManager.registerFeature(BarterNpcFeature())
 
         // 加载任务
         QuestLoader(this, questManager).loadAll()
