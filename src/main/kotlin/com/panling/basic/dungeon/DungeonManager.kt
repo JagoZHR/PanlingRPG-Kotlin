@@ -83,42 +83,86 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
 
     fun startDungeon(leader: Player, templateId: String) {
         val template = templates[templateId] ?: return
-        if (isPlaying(leader)) {
-            leader.sendMessage("§c你已经在一个副本中了！")
-            return
+
+        // 1. 获取玩家的队伍状态
+        val party = plugin.partyManager.getParty(leader)
+        val targetPlayers = mutableListOf<Player>()
+
+        if (party == null) {
+            // == 单人模式 ==
+            if (template.minPlayers > 1) {
+                leader.sendMessage("§c该副本至少需要 ${template.minPlayers} 人组队才能开启！")
+                return
+            }
+            if (isPlaying(leader)) {
+                leader.sendMessage("§c你已经在一个副本中了！")
+                return
+            }
+            targetPlayers.add(leader)
+        } else {
+            // == 组队模式 ==
+            if (party.leader != leader.uniqueId) {
+                leader.sendMessage("§c只有队长才能开启副本！")
+                return
+            }
+            if (party.members.size < template.minPlayers || party.members.size > template.maxPlayers) {
+                leader.sendMessage("§c队伍人数(${party.members.size})不满足副本要求 (${template.minPlayers}-${template.maxPlayers}人)！")
+                return
+            }
+
+            // 遍历并检查所有队员状态
+            for (uuid in party.members) {
+                val member = Bukkit.getPlayer(uuid)
+                if (member == null || !member.isOnline) {
+                    leader.sendMessage("§c队伍中有成员离线，无法开启副本！")
+                    return
+                }
+                if (isPlaying(member)) {
+                    leader.sendMessage("§c队员 ${member.name} 已经在副本中了，无法开启！")
+                    return
+                }
+                // (可选) 距离检查：防止队员挂机被强拉
+                if (member.location.world != leader.location.world || member.location.distance(leader.location) > 30.0) {
+                    leader.sendMessage("§c队员 ${member.name} 距离过远，无法开启副本！")
+                    return
+                }
+                targetPlayers.add(member)
+            }
         }
 
         val (centerLocation, index) = InstanceLocationProvider.getNextLocation()
+        leader.sendMessage("§e[系统] 正在构建副本，请稍候...")
 
-        leader.sendMessage("§e[系统] 正在构建副本...")
-
-        // [核心修改] 不再手动加载区块，直接把任务交给 SchematicManager
-        // 它会自动计算蓝图大小，并异步加载所需的全部区块
+        // 异步加载区块并在回调中带入组装好的 targetPlayers
         SchematicManager.pasteAsync(plugin, centerLocation, template.schematicName) {
-            // 粘贴完成回调
-            createAndJoinInstance(leader, template, centerLocation, index)
+            createAndJoinInstance(targetPlayers, template, centerLocation, index)
         }
     }
 
-    private fun createAndJoinInstance(leader: Player, template: DungeonTemplate, location: Location, index: Int) {
+    // [修改参数] 从 leader: Player 改为 players: List<Player>
+    private fun createAndJoinInstance(players: List<Player>, template: DungeonTemplate, location: Location, index: Int) {
         val instanceId = UUID.randomUUID().toString()
-        val initialPlayers = listOf(leader)
 
-        val instance = DungeonInstance(plugin, instanceId, template, location.world!!, initialPlayers)
+        // 传入所有验证过的玩家
+        val instance = DungeonInstance(plugin, instanceId, template, location.world!!, players)
         instance.centerLocation = location
 
         activeInstances[instanceId] = instance
         indexInstanceMap[index] = instanceId
-        initialPlayers.forEach { playerInstanceMap[it.uniqueId] = instanceId }
+
+        // 批量注册 UUID 映射
+        players.forEach { playerInstanceMap[it.uniqueId] = instanceId }
 
         val factory = logicRegistry[template.id]
         if (factory == null) {
-            leader.sendMessage("§c副本逻辑丢失！")
+            players.firstOrNull()?.sendMessage("§c副本逻辑丢失！")
             removeInstance(instanceId)
             return
         }
 
-        initialPlayers.forEach { instance.join(it) }
+        // 批量加入实例 (执行传送逻辑)
+        players.forEach { instance.join(it) }
+
         val initialPhase = factory(instance)
         instance.start(initialPhase)
     }

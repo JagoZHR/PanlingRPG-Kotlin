@@ -270,7 +270,7 @@ class MenuManager(
         fullInv.setItem(26, setIcon)
 
         // 饰品背包按钮 (Slot 25)
-        val accIcon = ItemStack(Material.EMERALD)
+        val accIcon = ItemStack(Material.WHITE_DYE)
         val accMeta = accIcon.itemMeta
         accMeta.displayName(Component.text("§a§l[ 饰品背包 ]").decoration(TextDecoration.ITALIC, false))
         val accLore = ArrayList<Component>()
@@ -365,6 +365,31 @@ class MenuManager(
         refineBtn.itemMeta = rm
         fullInv.setItem(24, refineBtn)
         // =======================================
+
+        // === [NEW] Slot 21: 组队面板 ===
+        val partyBtn = ItemStack(Material.CAULDRON) // 你可以换成 TOTEM_OF_UNDYING 等
+        val pmBtnMeta = partyBtn.itemMeta
+        pmBtnMeta.displayName(Component.text("§a§l[ 组队面板 ]").decoration(TextDecoration.ITALIC, false))
+        val pLore = ArrayList<Component>()
+        pLore.add(Component.text("§7点击打开组队与邀请界面").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
+
+        // 动态显示当前队伍状态
+        val party = plugin.partyManager.getParty(player)
+        if (party != null) {
+            pLore.add(Component.empty())
+            pLore.add(Component.text("§e当前队伍: ${party.members.size}/16 人").decoration(TextDecoration.ITALIC, false))
+        }
+
+        val invitesCount = plugin.partyManager.getInvites(player).size
+        if (invitesCount > 0) {
+            pLore.add(Component.empty())
+            pLore.add(Component.text("§c你有 $invitesCount 个未处理的邀请！").decoration(TextDecoration.ITALIC, false))
+        }
+
+        pmBtnMeta.lore(pLore)
+        pmBtnMeta.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "OPEN_PARTY")
+        partyBtn.itemMeta = pmBtnMeta
+        fullInv.setItem(21, partyBtn)
 
         // 装饰玻璃板逻辑 (9-18)
         // 中间 (13) 现在已经被占用了，所以只需要填补两边
@@ -493,6 +518,12 @@ class MenuManager(
 
                 openMenu(player) // 刷新菜单
                 player.updateInventory() // 刷新背包 Lore
+                return
+            }
+
+            if ("OPEN_PARTY" == action) {
+                // 直接调用我们上一步写好的 PartyUI
+                plugin.partyUI.openGUI(player)
                 return
             }
         }

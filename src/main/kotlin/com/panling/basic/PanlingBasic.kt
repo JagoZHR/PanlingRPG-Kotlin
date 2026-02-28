@@ -6,11 +6,13 @@ import com.panling.basic.dungeon.DungeonManager
 import com.panling.basic.forge.ForgeManager
 import com.panling.basic.listener.*
 import com.panling.basic.manager.*
+import com.panling.basic.party.*
 import com.panling.basic.quest.QuestLoader
 import com.panling.basic.quest.feature.QuestNpcFeature
 import com.panling.basic.shop.feature.BarterNpcFeature
 import com.panling.basic.shop.feature.ShopNpcFeature
 import com.panling.basic.ui.BankUI
+import com.panling.basic.ui.PartyUI
 import com.panling.basic.ui.QuestUI
 import com.panling.basic.ui.SetUI
 import com.panling.basic.ui.ShopUI
@@ -45,6 +47,8 @@ class PanlingBasic : JavaPlugin() {
     lateinit var questManager: QuestManager
     lateinit var questUI: QuestUI
     lateinit var npcManager: NpcManager
+    lateinit var partyManager: PartyManager
+    lateinit var partyUI: PartyUI
 
     // [NEW] 锻造 & 对话 & 商店
     lateinit var forgeManager: ForgeManager
@@ -87,6 +91,8 @@ class PanlingBasic : JavaPlugin() {
         accessoryManager = AccessoryManager(this, playerDataManager, itemManager)
         setManager.rebuildItemCache(itemManager)
         worldScriptManager = WorldScriptManager(this)
+        partyManager = PartyManager(this)
+        partyUI = PartyUI(this, partyManager)
 
         // 4. 状态与属性计算层
         buffManager = BuffManager(this)
