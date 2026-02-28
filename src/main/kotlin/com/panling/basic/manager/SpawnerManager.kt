@@ -89,7 +89,6 @@ class SpawnerManager(
     // === 2. 刷怪逻辑 (核心修改) ===
     private fun trySpawn(player: Player, spawner: SpawnerConfig) {
         val spawnerRecords = activeMobs.computeIfAbsent(spawner.id) { ConcurrentHashMap() }
-        // 使用 Collections.synchronizedSet 保证线程安全，或者用 ConcurrentHashMap.newKeySet()
         val playerMobs = spawnerRecords.computeIfAbsent(player.uniqueId) { Collections.synchronizedSet(HashSet()) }
 
         playerMobs.removeIf { uuid ->
@@ -97,46 +96,57 @@ class SpawnerManager(
             entity == null || !entity.isValid || entity.isDead
         }
 
+        // 如果场上怪物已经达到上限，直接返回
         if (playerMobs.size >= spawner.maxAmount) return
 
-        // 获取会话
         val session = depletionSessions.computeIfAbsent(player.uniqueId) { DepletionSession() }
 
-        // [MODIFIED] 1. 检查当前点是否枯竭
         if (spawner.depletionThreshold > 0) {
             val currentCount = session.getCount(spawner.id)
             if (currentCount >= spawner.depletionThreshold) {
                 player.sendActionBar(Component.text("§c此处的灵气已耗尽，请前往其他区域狩猎..."))
-                return // 拒绝生成，也不会触发重置
+                return
             }
         }
 
-        val spawnLoc = if (spawner.mode == SpawnMode.FIXED) {
-            spawner.center.clone()
-        } else {
-            findRandomLocAround(player.location, spawner.spawnRadius)
-        } ?: return
+        // [MODIFIED] 获取本次应该刷出的随机数量
+        val spawnCount = spawner.amountPool.getRandomAmount() ?: 1
+        var successfulSpawns = 0
 
-        val selectedMobId = spawner.mobPool.getRandomId() ?: return
+        // 开始循环生成
+        for (i in 0 until spawnCount) {
+            // 每次生成前都要检查是否达到场上最大上限 或 枯竭上限
+            if (playerMobs.size >= spawner.maxAmount) break
+            if (spawner.depletionThreshold > 0 && session.getCount(spawner.id) >= spawner.depletionThreshold) break
 
-        val mob = mobManager.spawnPrivateMob(spawnLoc, selectedMobId, player)
+            val spawnLoc = if (spawner.mode == SpawnMode.FIXED) {
+                spawner.center.clone()
+            } else {
+                findRandomLocAround(player.location, spawner.spawnRadius)
+            } ?: continue
 
-        // [MODIFIED] 2. 仅当成功刷怪后，才处理逻辑
-        if (mob != null) {
-            playerMobs.add(mob.uniqueId)
+            val selectedMobId = spawner.mobPool.getRandomId() ?: continue
+            val mob = mobManager.spawnPrivateMob(spawnLoc, selectedMobId, player)
 
-            // 核心逻辑变化：
-            // 只有当当前触发的点也是一个“枯竭点”时，才去尝试重置远处的点。
+            if (mob != null) {
+                playerMobs.add(mob.uniqueId)
+                successfulSpawns++
+
+                // 增加当前点计数 (按只计算枯竭)
+                if (spawner.depletionThreshold > 0) {
+                    session.increment(spawner.id)
+                }
+            }
+        }
+
+        // [MODIFIED] 只要成功刷出至少1只怪，就执行后续提示和重置逻辑
+        if (successfulSpawns > 0) {
             if (spawner.depletionThreshold > 0) {
-                // A. 增加当前点计数
-                session.increment(spawner.id)
-
-                // B. 执行重置逻辑 (Reset Check)
-                // 玩家成功在“枯竭点 B”刷出了一只怪 -> 视为有效迁徙 -> 清理掉远处的“枯竭点 A”
+                // 执行远处枯竭点重置逻辑
                 session.cleanupDistance(player.location, spawner.id, spawnerConfigMap)
             }
 
-            // 提示与音效
+            // 提示与音效 (一次刷怪周期只提示一次，避免刷3只怪发3次声音)
             if (spawner.spawnMessage != null) player.sendMessage(spawner.spawnMessage.replace("&", "§"))
             if (spawner.spawnTitle != null) player.showTitle(Title.title(Component.empty(), Component.text(spawner.spawnTitle.replace("&", "§"))))
 
@@ -460,16 +470,43 @@ class SpawnerManager(
 
                 if (pool.isEmpty()) continue
 
-                // [核心修复] 在这里计算平方！
+                // === [NEW] 解析数量与概率池 ===
+                val amountPool = AmountPool()
+                if (sec.contains("amounts")) {
+                    val amountsSec = sec.getConfigurationSection("amounts")
+                    if (amountsSec != null) {
+                        for (amtStr in amountsSec.getKeys(false)) {
+                            val amt = amtStr.toIntOrNull() ?: continue
+                            val weight = amountsSec.getDouble(amtStr)
+                            amountPool.add(amt, weight)
+                        }
+                    }
+                } else {
+                    // 如果没配置 amounts，则读取区间进行平分
+                    val minSpawn = sec.getInt("min_spawn", 1)
+                    val maxSpawn = sec.getInt("max_spawn", 1)
+                    val min = minOf(minSpawn, maxSpawn)
+                    val max = maxOf(minSpawn, maxSpawn)
+                    for (i in min..max) {
+                        amountPool.add(i, 1.0) // 权重全部设为 1.0，实现平分概率
+                    }
+                }
+
+                // 保底机制
+                if (amountPool.isEmpty()) {
+                    amountPool.add(1, 1.0)
+                }
+
                 val triggerSq = triggerRadius * triggerRadius
                 val despawnSq = despawnRadius * despawnRadius
 
                 spawnerConfigMap[id] = SpawnerConfig(
                     id, Location(w, x, y, z),
-                    triggerSq, // 传入平方值
-                    despawnSq, // 传入平方值
+                    triggerSq,
+                    despawnSq,
                     pool, max, interval, mode, spawnRadius, worldName,
-                    msg, title, sound, depletionThreshold
+                    msg, title, sound, depletionThreshold,
+                    amountPool // [NEW] 传入 amountPool
                 )
 
             } catch (e: Exception) {
@@ -536,6 +573,27 @@ class SpawnerManager(
         }
     }
 
+    // [NEW] 数量概率池
+    private class AmountPool {
+        private val map = TreeMap<Double, Int>()
+        private var totalWeight = 0.0
+
+        fun add(amount: Int, weight: Double) {
+            if (weight <= 0) return
+            totalWeight += weight
+            map[totalWeight] = amount
+        }
+
+        fun getRandomAmount(): Int? {
+            if (map.isEmpty()) return null
+            val value = ThreadLocalRandom.current().nextDouble() * totalWeight
+            val entry = map.higherEntry(value)
+            return entry?.value
+        }
+
+        fun isEmpty(): Boolean = map.isEmpty()
+    }
+
     private data class SpawnerConfig(
         val id: String,
         val center: Location,
@@ -550,7 +608,8 @@ class SpawnerManager(
         val spawnMessage: String?,
         val spawnTitle: String?,
         val spawnSound: String?,
-        val depletionThreshold: Int
+        val depletionThreshold: Int,
+        val amountPool: AmountPool // [NEW] 增加这个字段
     ) {
         // 次级构造函数不是必须的，因为我们在 loadSingleFile 里已经算好了 square，
         // 直接传给主构造函数即可。上面的 data class 定义直接对应计算后的值。
