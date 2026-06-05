@@ -184,6 +184,8 @@ class ForgeUI(private val manager: ForgeManager) {
         val lore = ArrayList<Component>()
         val balance = manager.playerDataManager.getMoney(player)
         val cost = recipe.cost
+        val spiritCost = recipe.spiritCost
+        val spiritBalance = manager.playerDataManager.getElementPoints(player)
 
         lore.add(Component.text("----------------").color(NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false))
         if (cost > 0) {
@@ -195,6 +197,15 @@ class ForgeUI(private val manager: ForgeManager) {
             lore.add(Component.text("当前余额: " + String.format("%.0f", balance)).color(NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false))
         } else {
             lore.add(Component.text("免费锻造").color(NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false))
+        }
+        // [NEW] 灵力消耗显示
+        if (spiritCost > 0) {
+            val spiritColor = if (spiritBalance >= spiritCost) NamedTextColor.AQUA else NamedTextColor.RED
+            lore.add(
+                Component.text("消耗灵力: ").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                    .append(Component.text(spiritCost.toString()).color(spiritColor))
+            )
+            lore.add(Component.text("当前灵力: $spiritBalance").color(NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false))
         }
         lore.add(Component.empty())
         lore.add(Component.text("▶ 点击左键立即锻造").color(NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false))

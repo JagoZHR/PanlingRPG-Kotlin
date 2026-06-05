@@ -112,10 +112,11 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
         }
 
         val cost = section.getDouble("cost", 0.0)
+        val spiritCost = section.getLong("spirit_cost", 0L)  // [NEW] 灵力消耗
         val time = section.getInt("time", 0)
         val requiresUnlock = section.getBoolean("requires_unlock", false)
 
-        val recipe = ForgeRecipe(id, targetId, category, name, mats, cost, time, requiresUnlock)
+        val recipe = ForgeRecipe(id, targetId, category, name, mats, cost, spiritCost, time, requiresUnlock)
         recipes[id] = recipe
     }
 
@@ -152,6 +153,15 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
         if (recipe.cost > 0) {
             if (!playerDataManager.takeMoney(player, recipe.cost)) {
                 player.sendMessage("§c[锻造] 余额不足！需要: ${recipe.cost}")
+                player.playSound(player.location, Sound.ENTITY_VILLAGER_NO, 1f, 1f)
+                return
+            }
+        }
+
+        // [NEW] 检查并扣除灵力
+        if (recipe.spiritCost > 0) {
+            if (!playerDataManager.takeElementPoints(player, recipe.spiritCost)) {
+                player.sendMessage("§c[锻造] 灵力不足！需要: ${recipe.spiritCost} 灵力")
                 player.playSound(player.location, Sound.ENTITY_VILLAGER_NO, 1f, 1f)
                 return
             }
@@ -207,6 +217,9 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
 
         if (recipe.cost > 0) {
             player.sendMessage("§e[锻造] 消耗铜钱: ${recipe.cost}")
+        }
+        if (recipe.spiritCost > 0) {
+            player.sendMessage("§e[锻造] 消耗灵力: ${recipe.spiritCost}")
         }
     }
 
