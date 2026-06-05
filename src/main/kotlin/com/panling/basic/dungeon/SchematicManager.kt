@@ -58,22 +58,27 @@ object SchematicManager {
                 for (x in min.x()..max.x()) {
                     for (y in min.y()..max.y()) {
                         for (z in min.z()..max.z()) {
-                            val vec = BlockVector3.at(x, y, z)
-                            val baseBlock = clipboard.getFullBlock(vec)
-                            if (!baseBlock.blockType.id().contains("air")) {
-                                val material = BukkitAdapter.adapt(baseBlock.blockType)
-                                val relX = x - origin.x()
-                                val relY = y - origin.y()
-                                val relZ = z - origin.z()
-                                actions.add(PasteAction(relX, relY, relZ, material))
+                            val blockState = clipboard.getBlock(x, y, z)
+                            val blockType = blockState.blockType
+                            if (BukkitAdapter.adapt(blockType).isAir) continue
 
-                                val absX = center.blockX + relX
-                                val absZ = center.blockZ + relZ
-                                if (absX < minWorldX) minWorldX = absX
-                                if (absX > maxWorldX) maxWorldX = absX
-                                if (absZ < minWorldZ) minWorldZ = absZ
-                                if (absZ > maxWorldZ) maxWorldZ = absZ
+                            // 优先用 Bukkit 原生解析（对楼梯等复杂方块更可靠）
+                            val blockData = try {
+                                Bukkit.createBlockData(blockState.asString)
+                            } catch (e: Exception) {
+                                BukkitAdapter.adapt(blockState)
                             }
+                            val relX = x - origin.x()
+                            val relY = y - origin.y()
+                            val relZ = z - origin.z()
+                            actions.add(PasteAction(relX, relY, relZ, blockData))
+
+                            val absX = center.blockX + relX
+                            val absZ = center.blockZ + relZ
+                            if (absX < minWorldX) minWorldX = absX
+                            if (absX > maxWorldX) maxWorldX = absX
+                            if (absZ < minWorldZ) minWorldZ = absZ
+                            if (absZ > maxWorldZ) maxWorldZ = absZ
                         }
                     }
                 }
@@ -178,7 +183,7 @@ object SchematicManager {
         } catch (e: Exception) { e.printStackTrace(); null }
     }
 
-    private data class PasteAction(val relX: Int, val relY: Int, val relZ: Int, val material: Material)
+    private data class PasteAction(val relX: Int, val relY: Int, val relZ: Int, val blockData: org.bukkit.block.data.BlockData)
 
     private class RenderTask(
         val plugin: PanlingBasic, // 需要 plugin 实例来移除 ticket
@@ -202,7 +207,7 @@ object SchematicManager {
                     // 此时 isChunkLoaded 几乎100%为 true，因为有 Ticket 撑腰
                     // 但保留检查是个好习惯
                     if (world.isChunkLoaded(targetX shr 4, targetZ shr 4)) {
-                        world.getBlockAt(targetX, targetY, targetZ).setType(action.material, false)
+                        world.getBlockAt(targetX, targetY, targetZ).setBlockData(action.blockData, false)
                     }
                 }
                 index++

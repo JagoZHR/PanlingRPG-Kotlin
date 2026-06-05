@@ -143,8 +143,12 @@ class DungeonInstance(
     fun handlePlayerDeath(player: Player) {
         if (state == DungeonState.RUNNING) {
             currentPhase?.onPlayerDeath(player)
-            // 简单的失败判定示例：全员死亡
-            // if (getAlivePlayers().isEmpty()) failDungeon("全员阵亡")
+            // 全员阵亡 → 副本失败
+            val allDead = players.all { uid ->
+                val p = Bukkit.getPlayer(uid)
+                p == null || p.isDead || !p.isOnline
+            }
+            if (allDead) failDungeon("§c全员阵亡")
         }
     }
 
