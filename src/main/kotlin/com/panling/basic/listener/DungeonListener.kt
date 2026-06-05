@@ -4,6 +4,7 @@ import com.panling.basic.PanlingBasic
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
+import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.event.entity.EntityDeathEvent
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.player.PlayerInteractEvent
@@ -56,5 +57,22 @@ class DungeonListener(private val plugin: PanlingBasic) : Listener {
 
         // 通知副本玩家阵亡
         instance.handlePlayerDeath(player)
+    }
+
+    /**
+     * 实体受伤事件 (用于 Phase 处理反伤等机制)
+     */
+    @EventHandler
+    fun onEntityDamage(event: EntityDamageByEntityEvent) {
+        val entity = event.entity
+        val manager = plugin.dungeonManager
+
+        if (entity is Player) {
+            val instance = manager.getInstance(entity) ?: return
+            instance.handleDamage(event)
+        } else {
+            val instance = manager.getInstanceAt(entity.location) ?: return
+            instance.handleDamage(event)
+        }
     }
 }

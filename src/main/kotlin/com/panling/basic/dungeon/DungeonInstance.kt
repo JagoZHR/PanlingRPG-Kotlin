@@ -154,8 +154,7 @@ class DungeonInstance(
 
     fun handleDamage(event: EntityDamageByEntityEvent) {
         if (state == DungeonState.RUNNING) {
-            // 如果 Phase 需要处理伤害事件，可以在 AbstractDungeonPhase 加对应方法
-            // currentPhase?.onDamage(event)
+            currentPhase?.onDamage(event)
         }
     }
 
