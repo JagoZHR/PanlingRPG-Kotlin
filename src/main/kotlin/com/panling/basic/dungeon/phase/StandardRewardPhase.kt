@@ -1,6 +1,7 @@
 package com.panling.basic.dungeon.phase
 
 import com.panling.basic.PanlingBasic
+import com.panling.basic.dungeon.DungeonCompleteEvent
 import com.panling.basic.dungeon.DungeonInstance
 import com.panling.basic.dungeon.RewardConfig
 import net.kyori.adventure.text.Component
@@ -82,5 +83,10 @@ class StandardRewardPhase(
 
         // 自定义回调（如解锁配方）
         config.onReward?.invoke(player)
+
+        // 触发副本通关事件（供任务系统等监听）
+        Bukkit.getPluginManager().callEvent(
+            DungeonCompleteEvent(player, instance.template.id)
+        )
     }
 }

@@ -4,6 +4,7 @@ import com.panling.basic.PanlingBasic
 import com.panling.basic.api.BasicKeys
 import com.panling.basic.api.PlayerRace
 import com.panling.basic.api.Reloadable
+import com.panling.basic.dungeon.DungeonCompleteEvent
 import com.panling.basic.quest.Quest
 import com.panling.basic.quest.QuestLoader
 import com.panling.basic.quest.QuestProgress
@@ -17,6 +18,7 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityDeathEvent
 import org.bukkit.event.player.PlayerInteractEntityEvent
+import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.inventory.EquipmentSlot
@@ -155,6 +157,17 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
         dispatchEvent(event.player, event)
     }
 
+    @EventHandler
+    fun onDungeonComplete(event: DungeonCompleteEvent) {
+        dispatchEvent(event.player, event)
+    }
+
+    @EventHandler
+    fun onBlockInteract(event: PlayerInteractEvent) {
+        if (event.clickedBlock == null) return
+        dispatchEvent(event.player, event)
+    }
+
     // === 4. 玩家数据管理 ===
 
     fun acceptQuest(player: Player, questId: String) {
@@ -209,9 +222,19 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
         if (player.level < quest.requiredLevel) return false
 
         // 4. 检查前置任务
-        val preId = quest.preQuestId
-        if (!preId.isNullOrEmpty()) {
-            if (!hasCompleted(player, preId)) return false
+        // OR: preQuestId 或 preQuestIds 中任意一个完成即可
+        val preIds = quest.preQuestIds
+        val hasSinglePre = !quest.preQuestId.isNullOrEmpty()
+        if (preIds.isNotEmpty() || hasSinglePre) {
+            var anyCompleted = false
+            if (hasSinglePre && hasCompleted(player, quest.preQuestId!!)) anyCompleted = true
+            if (!anyCompleted && preIds.any { hasCompleted(player, it) }) anyCompleted = true
+            if (!anyCompleted) return false
+        }
+        // AND: preQuestIdsAll 中的全部必须完成
+        val preAllIds = quest.preQuestIdsAll
+        if (preAllIds.isNotEmpty()) {
+            if (!preAllIds.all { hasCompleted(player, it) }) return false
         }
 
         // 5. 检查种族限制
@@ -230,11 +253,15 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
      * @return true 如果触发了自动完成
      */
     fun tryAutoCompleteNpc(player: Player, progress: QuestProgress, npcId: String): Boolean {
+        // 如果任务不允许自动完成 NPC 对话，直接跳过
+        if (!progress.quest.autoCompleteNpc) return false
+
         var updated = false
         for (obj in progress.quest.objectives) {
             if (obj is TalkToNpcObjective && obj.matchesNpc(npcId)) {
-                if (progress.getProgress(obj.id) < obj.requiredAmount) {
-                    progress.setProgress(obj.id, obj.requiredAmount)
+                val current = progress.getProgress(obj.id)
+                if (current < obj.requiredAmount) {
+                    progress.setProgress(obj.id, current + 1)
                     updated = true
                 }
             }

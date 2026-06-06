@@ -20,6 +20,7 @@ import org.bukkit.entity.EntityType
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Mob
 import org.bukkit.entity.Player
+import org.bukkit.entity.Rabbit
 import org.bukkit.inventory.EquipmentSlot
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
@@ -77,7 +78,9 @@ class MobManager(
         val drops: List<DropConfig>,
         val equipment: EquipmentConfig?,
         val skills: List<SkillEntry>,
-        val lootTableIds: List<String>
+        val lootTableIds: List<String>,
+        val scale: Double = 1.0, // 体型缩放 (仅 Paper)
+        val rabbitType: String? = null // Rabbit.Type 名称 (仅 RABBIT)
     )
 
     init {
@@ -205,6 +208,8 @@ class MobManager(
         }
 
         val linkedTables = sec.getStringList("loot_tables")
+        val scale = sec.getDouble("scale", 1.0)
+        val rabbitType = sec.getString("rabbit_type")
 
         val stats = MobStats(
             id = id,
@@ -228,7 +233,9 @@ class MobManager(
             drops = dropList,
             equipment = eqConfig,
             skills = skillList,
-            lootTableIds = linkedTables
+            lootTableIds = linkedTables,
+            scale = scale,
+            rabbitType = rabbitType
         )
         mobCache[id] = stats
     }
@@ -245,6 +252,23 @@ class MobManager(
         // 假设 template.name 已经包含颜色代码或者用 &
         entity.customName = template.name.replace("&", "§")
         entity.isCustomNameVisible = true
+
+        // 应用体型缩放 (Paper 1.21+ 使用 Attribute.SCALE)
+        if (template.scale != 1.0) {
+            try {
+                val scaleAttr = entity.getAttribute(Attribute.SCALE)
+                scaleAttr?.baseValue = template.scale
+            } catch (ignored: Exception) {}
+        }
+
+        // 应用杀手兔类型 (仅 RABBIT 实体)
+        if (entity is Rabbit && template.rabbitType != null) {
+            try {
+                entity.rabbitType = Rabbit.Type.valueOf(template.rabbitType.uppercase())
+            } catch (e: Exception) {
+                plugin.logger.warning("无效的 rabbit_type '${template.rabbitType}'，对 mob '$mobId'")
+            }
+        }
 
         // 设置属性 (使用 GENERIC_ 前缀适配新版本)
         setAttr(entity, Attribute.MAX_HEALTH, template.hp)

@@ -5,11 +5,15 @@ import com.panling.basic.api.PlayerRace
 import com.panling.basic.manager.QuestManager
 import com.panling.basic.quest.api.QuestObjective
 import com.panling.basic.quest.api.QuestReward
+import com.panling.basic.quest.impl.DungeonCompleteObjective
+import com.panling.basic.quest.impl.InteractBlockObjective
+import com.panling.basic.quest.impl.ItemReward
 import com.panling.basic.quest.impl.KillMobObjective
 import com.panling.basic.quest.impl.MoneyReward
 import com.panling.basic.quest.impl.TalkToNpcObjective
 import org.bukkit.Bukkit
 import org.bukkit.Location
+import org.bukkit.Material
 import org.bukkit.configuration.file.YamlConfiguration
 import java.io.File
 
@@ -49,6 +53,14 @@ class QuestLoader(
             MoneyReward(amount)
         }
 
+        // --- 注册物品奖励 ---
+        registry.registerReward("ITEM") { config ->
+            val itemId = config.getString("item_id") ?: "air"
+            val amount = config.getInt("amount", 1)
+            val display = config.getString("display", itemId) ?: itemId
+            ItemReward(itemId, amount, display)
+        }
+
         // --- 注册对话目标 ---
         registry.registerObjective("TALK_TO_NPC") { id, config ->
             val npcId = config.getString("npc_id") ?: "UNKNOWN"
@@ -60,6 +72,35 @@ class QuestLoader(
             }
 
             TalkToNpcObjective(id, npcId, desc, navLoc)
+        }
+
+        // --- 注册副本通关目标 ---
+        registry.registerObjective("DUNGEON_COMPLETE") { id, config ->
+            val dungeonId = config.getString("dungeon_id") ?: "UNKNOWN"
+            val desc = config.getString("description") ?: "通关副本"
+
+            var navLoc: Location? = null
+            if (config.contains("location")) {
+                navLoc = parseLocation(config.getString("location"))
+            }
+
+            DungeonCompleteObjective(id, dungeonId, desc, navLoc)
+        }
+
+        // --- 注册方块交互目标 ---
+        registry.registerObjective("INTERACT_BLOCK") { id, config ->
+            val matStr = config.getString("material") ?: "CHEST"
+            val mat = try { Material.valueOf(matStr.uppercase()) } catch (e: Exception) { Material.CHEST }
+            val desc = config.getString("description") ?: "交互方块"
+
+            var navLoc: Location? = null
+            var targetLoc = Location(Bukkit.getWorlds().firstOrNull(), 0.0, 0.0, 0.0)
+            if (config.contains("location")) {
+                targetLoc = parseLocation(config.getString("location")) ?: targetLoc
+                navLoc = targetLoc
+            }
+
+            InteractBlockObjective(id, mat, targetLoc, desc, navLoc)
         }
     }
 
@@ -98,6 +139,12 @@ class QuestLoader(
             // 2. 接取条件
             val reqLevel = yaml.getInt("requirements.level", 0)
             val preQuest = yaml.getString("requirements.pre_quest")
+            val preQuestList = yaml.getStringList("requirements.pre_quests")
+            // 合并：pre_quest 单值 + pre_quests 列表 → 统一列表
+            val allPreQuests = mutableListOf<String>()
+            if (!preQuest.isNullOrEmpty()) allPreQuests.add(preQuest)
+            allPreQuests.addAll(preQuestList.filter { it.isNotBlank() })
+            val preQuestsAll = yaml.getStringList("requirements.pre_quests_all").filter { it.isNotBlank() }
             val startNpc = yaml.getString("start_npc")
             val reqRaceStr = yaml.getString("requirements.race")
             val reqRace = if (reqRaceStr != null) {
@@ -136,7 +183,8 @@ class QuestLoader(
 
             // 5. 构建并注册
             val dialogList = yaml.getStringList("accept_dialog")
-            val quest = Quest(id, name, desc, reqLevel, preQuest, startNpc, reqRace, objectives, rewards, dialogList)
+            val autoComplete = yaml.getBoolean("auto_complete_npc", true)
+            val quest = Quest(id, name, desc, reqLevel, preQuest, allPreQuests, preQuestsAll, startNpc, reqRace, objectives, rewards, dialogList, autoComplete)
             questManager.registerQuest(quest)
             plugin.logger.info(" - 已加载任务: $name ($id)")
 

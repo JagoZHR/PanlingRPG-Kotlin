@@ -9,12 +9,15 @@ class Quest(
     val name: String,
     val description: String,
     val requiredLevel: Int,
-    val preQuestId: String?, // 允许为空 (无前置)
+    val preQuestId: String?, // [兼容] 单个前置 (已废弃，请用 preQuestIds)
+    val preQuestIds: List<String>, // 多个前置 (OR: 满足任意一个即可，空列表 = 无前置)
+    val preQuestIdsAll: List<String>, // 多个前置 (AND: 必须全部完成，空列表 = 无前置)
     var startNpcId: String?, // 允许为空 (无起始NPC)，且可变 (Setter)
     val requiredRace: PlayerRace?, // 种族限制 (null = 无限制)
     val objectives: List<QuestObjective>,
     val rewards: List<QuestReward>,
-    val acceptDialog: List<String> = emptyList() // 接取任务时的多轮对话 (空列表 = 使用默认)
+    val acceptDialog: List<String> = emptyList(), // 接取任务时的多轮对话
+    val autoCompleteNpc: Boolean = true // 接取后是否自动完成当前 NPC 的对话目标 (默认 true)
 ) {
 
     // === [兼容性] 7 参数构造函数 (无 startNpcId, 无 requiredRace)
@@ -26,7 +29,7 @@ class Quest(
         preQuestId: String?,
         objectives: List<QuestObjective>,
         rewards: List<QuestReward>
-    ) : this(id, name, description, requiredLevel, preQuestId, null, null, objectives, rewards)
+    ) : this(id, name, description, requiredLevel, preQuestId, emptyList(), emptyList(), null, null, objectives, rewards)
 
     /**
      * 检查任务是否已完成

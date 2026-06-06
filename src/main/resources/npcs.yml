@@ -5,6 +5,7 @@ npc_chief:
   dialog: "年轻人，村子周围最近不太平，你能帮帮我们吗？"
   data:
     shop_id: "grocery_store"
+    barter_id: "test_trader"
 
 npc_guard:
   name: "§b王城守卫"
@@ -25,24 +26,32 @@ npc_chief_divine:
   type: VILLAGER
   location: world,3336.5,158,118.5,0,0
   dialog: "愿神辉照耀你的前路。有什么我能帮忙的吗？"
+  appearance:
+    biome: SNOW             # 村民皮肤/生物群系变体（仅 VILLAGER）
 
 npc_chief_immortal:
   name: "§b仙族长老"
   type: VILLAGER
   location: world,3337.5,109,941.5,0,0
   dialog: "修道之路漫长，你有什么想问的吗？"
+  appearance:
+    biome: TAIGA             # 村民皮肤/生物群系变体（仅 VILLAGER）
 
 npc_chief_demon:
   name: "§5妖族族长"
   type: VILLAGER
   location: world,2784.5,53,864.5,0,0
   dialog: "新来的？不错，看着挺有精神。有什么事？"
+  appearance:
+    biome: JUNGLE             # 村民皮肤/生物群系变体（仅 VILLAGER）
 
 npc_chief_war_god:
   name: "§4战神族族长"
   type: VILLAGER
   location: world,3264.5,20,-148.5,0,0
   dialog: "又是一位渴望变强的战士。说吧，需要什么？"
+  appearance:
+    biome: DESERT             # 村民皮肤/生物群系变体（仅 VILLAGER）
 
 # ========== 五大种族导师 ==========
 
@@ -57,21 +66,40 @@ npc_guide_divine:
   type: VILLAGER
   location: world,185.5,66,-158.5,0,0
   dialog: "欢迎。我是负责引导新人的导师。有什么需要帮助的吗？"
+  appearance:
+    biome: SNOW             # 村民皮肤/生物群系变体（仅 VILLAGER）
 
 npc_guide_immortal:
   name: "§b仙族导师"
   type: VILLAGER
   location: world,253.5,49,26.5,0,0
   dialog: "又来了一位道友。炼丹的基础都在那边的架子上，自己先看看吧。"
+  appearance:
+    biome: TAIGA             # 村民皮肤/生物群系变体（仅 VILLAGER）
 
 npc_guide_demon:
   name: "§5妖族导师"
   type: VILLAGER
   location: world,-197.5,65,-173.5,0,0
   dialog: "你就是族长说的新人？嗯…先让我看看你的本事再说。"
+  appearance:
+    biome: JUNGLE             # 村民皮肤/生物群系变体（仅 VILLAGER）
 
 npc_guide_war_god:
   name: "§4战神族导师"
   type: VILLAGER
   location: world,-52.5,51,325.5,0,0
   dialog: "新来的？好！先跑十圈热热身，跑完了再来找我。"
+  appearance:
+    biome: DESERT             # 村民皮肤/生物群系变体（仅 VILLAGER）
+
+# ========== 青龙地区 ==========
+
+npc_qinglong_guide:
+  name: "§a青龙使者"
+  type: VILLAGER
+  location: world,1500.5,64,-500.5,0,0
+  dialog: "远道而来的旅人……你身上有被选中者的气息。想接受青龙的试炼吗？"
+  appearance:
+    profession: CARTOGRAPHER
+    biome: JUNGLE
