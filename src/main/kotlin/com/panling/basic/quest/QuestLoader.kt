@@ -1,11 +1,13 @@
 package com.panling.basic.quest
 
 import com.panling.basic.PanlingBasic
+import com.panling.basic.api.PlayerRace
 import com.panling.basic.manager.QuestManager
 import com.panling.basic.quest.api.QuestObjective
 import com.panling.basic.quest.api.QuestReward
 import com.panling.basic.quest.impl.KillMobObjective
 import com.panling.basic.quest.impl.MoneyReward
+import com.panling.basic.quest.impl.TalkToNpcObjective
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.configuration.file.YamlConfiguration
@@ -46,6 +48,19 @@ class QuestLoader(
             val amount = config.getDouble("amount")
             MoneyReward(amount)
         }
+
+        // --- 注册对话目标 ---
+        registry.registerObjective("TALK_TO_NPC") { id, config ->
+            val npcId = config.getString("npc_id") ?: "UNKNOWN"
+            val desc = config.getString("description") ?: "与NPC对话"
+
+            var navLoc: Location? = null
+            if (config.contains("location")) {
+                navLoc = parseLocation(config.getString("location"))
+            }
+
+            TalkToNpcObjective(id, npcId, desc, navLoc)
+        }
     }
 
     fun loadAll() {
@@ -84,6 +99,10 @@ class QuestLoader(
             val reqLevel = yaml.getInt("requirements.level", 0)
             val preQuest = yaml.getString("requirements.pre_quest")
             val startNpc = yaml.getString("start_npc")
+            val reqRaceStr = yaml.getString("requirements.race")
+            val reqRace = if (reqRaceStr != null) {
+                try { PlayerRace.valueOf(reqRaceStr.uppercase()) } catch (e: Exception) { null }
+            } else null
 
             // 3. 解析目标 (Objectives)
             val objectives = ArrayList<QuestObjective>()
@@ -116,8 +135,8 @@ class QuestLoader(
             }
 
             // 5. 构建并注册
-            // 这里的 Quest 构造函数应匹配 Quest.kt 中的主构造函数
-            val quest = Quest(id, name, desc, reqLevel, preQuest, startNpc, objectives, rewards)
+            val dialogList = yaml.getStringList("accept_dialog")
+            val quest = Quest(id, name, desc, reqLevel, preQuest, startNpc, reqRace, objectives, rewards, dialogList)
             questManager.registerQuest(quest)
             plugin.logger.info(" - 已加载任务: $name ($id)")
 

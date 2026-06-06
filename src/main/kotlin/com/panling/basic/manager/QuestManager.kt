@@ -1,10 +1,13 @@
 package com.panling.basic.manager
 
 import com.panling.basic.PanlingBasic
+import com.panling.basic.api.BasicKeys
+import com.panling.basic.api.PlayerRace
 import com.panling.basic.api.Reloadable
 import com.panling.basic.quest.Quest
 import com.panling.basic.quest.QuestLoader
 import com.panling.basic.quest.QuestProgress
+import com.panling.basic.quest.impl.TalkToNpcObjective
 import org.bukkit.Bukkit
 import org.bukkit.Sound
 import org.bukkit.configuration.file.YamlConfiguration
@@ -13,8 +16,11 @@ import org.bukkit.event.Event
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityDeathEvent
+import org.bukkit.event.player.PlayerInteractEntityEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
+import org.bukkit.inventory.EquipmentSlot
+import org.bukkit.persistence.PersistentDataType
 import java.io.File
 import java.io.IOException
 import java.util.*
@@ -115,8 +121,8 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
         }
     }
 
-    // 检查任务是否完成
-    private fun checkCompletion(player: Player, progress: QuestProgress) {
+    // 检查任务是否完成 (供外部调用，如 GiveQuestAction 自动完成 NPC 对话任务)
+    fun checkCompletion(player: Player, progress: QuestProgress) {
         if (progress.quest.isCompleted(progress)) {
             progress.isCompleted = true
             player.sendMessage("§6§l[任务完成] ${progress.quest.name}")
@@ -137,6 +143,16 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
         event.entity.killer?.let { killer ->
             dispatchEvent(killer, event)
         }
+    }
+
+    @EventHandler
+    fun onNpcInteract(event: PlayerInteractEntityEvent) {
+        if (event.hand != EquipmentSlot.HAND) return
+        // 检查被点击的实体是否是 NPC
+        val npcId = event.rightClicked.persistentDataContainer
+            .get(BasicKeys.NPC_ID, PersistentDataType.STRING) ?: return
+        // NPC 交互也走统一的事件分发
+        dispatchEvent(event.player, event)
     }
 
     // === 4. 玩家数据管理 ===
@@ -198,7 +214,36 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
             if (!hasCompleted(player, preId)) return false
         }
 
+        // 5. 检查种族限制
+        val requiredRace = quest.requiredRace
+        if (requiredRace != null && requiredRace != PlayerRace.NONE) {
+            val playerRace = plugin.playerDataManager.getPlayerRace(player)
+            if (playerRace != requiredRace) return false
+        }
+
         return true
+    }
+
+    /**
+     * 接取任务后自动完成与该 NPC 的对话目标
+     * 用于接取即完成的场景 (如 "找到族长并对话")
+     * @return true 如果触发了自动完成
+     */
+    fun tryAutoCompleteNpc(player: Player, progress: QuestProgress, npcId: String): Boolean {
+        var updated = false
+        for (obj in progress.quest.objectives) {
+            if (obj is TalkToNpcObjective && obj.matchesNpc(npcId)) {
+                if (progress.getProgress(obj.id) < obj.requiredAmount) {
+                    progress.setProgress(obj.id, obj.requiredAmount)
+                    updated = true
+                }
+            }
+        }
+        if (updated) {
+            checkCompletion(player, progress)
+            savePlayerData(player)
+        }
+        return updated
     }
 
     // [NEW] 获取所有可接取任务

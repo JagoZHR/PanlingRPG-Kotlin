@@ -1,14 +1,17 @@
 package com.panling.basic.manager
 
 import com.panling.basic.PanlingBasic
+import com.panling.basic.api.BasicKeys
 import com.panling.basic.api.Reloadable
 import com.panling.basic.npc.Npc
 import org.bukkit.Bukkit
 import org.bukkit.Location
+import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.EntityType
 import org.bukkit.entity.LivingEntity
+import org.bukkit.entity.Villager
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerInteractEntityEvent
@@ -35,6 +38,8 @@ class NpcManager(private val plugin: PanlingBasic) : Listener, Reloadable {
             plugin.reloadManager.register(this)
         } catch (ignored: Exception) {}
 
+        // 启动时先清理可能残留的旧 NPC 实体（防止重启后叠堆）
+        despawnAll()
         loadConfig()
     }
 
@@ -140,6 +145,16 @@ class NpcManager(private val plugin: PanlingBasic) : Listener, Reloadable {
                     }
                 }
 
+                // [NEW] 读取外观配置 (职业、皮肤、装备)
+                if (sec.contains("appearance")) {
+                    val appearSec = sec.getConfigurationSection("appearance")
+                    if (appearSec != null) {
+                        for (key in appearSec.getKeys(false)) {
+                            npc.setData("appearance.$key", appearSec.get(key)!!)
+                        }
+                    }
+                }
+
                 npcMap[id] = npc
             }
         }
@@ -190,12 +205,61 @@ class NpcManager(private val plugin: PanlingBasic) : Listener, Reloadable {
         entity.customName = npc.name
         entity.isCustomNameVisible = true
 
+        // [NEW] 应用外观设置
+        applyAppearance(entity, npc)
+
         // 打上标签
         entity.persistentDataContainer.set(KEY_IS_NPC, PersistentDataType.BYTE, 1.toByte())
+        entity.persistentDataContainer.set(BasicKeys.NPC_ID, PersistentDataType.STRING, npc.id)
 
         // 更新记录
         npc.entityUuid = entity.uniqueId
         entityMap[entity.uniqueId] = npc
+    }
+
+    /**
+     * 应用 NPC 的外观配置（职业、皮肤、装备）
+     */
+    private fun applyAppearance(entity: LivingEntity, npc: Npc) {
+        // 1. 村民职业和皮肤
+        if (entity is Villager) {
+            val profStr = npc.getData("appearance.profession") as? String
+            if (profStr != null) {
+                try {
+                    entity.profession = Villager.Profession.valueOf(profStr.uppercase())
+                } catch (e: Exception) {
+                    plugin.logger.warning("NPC '${npc.id}' 的职业 '$profStr' 无效")
+                }
+            }
+            val biomeStr = npc.getData("appearance.biome") as? String
+            if (biomeStr != null) {
+                try {
+                    entity.villagerType = Villager.Type.valueOf(biomeStr.uppercase())
+                } catch (e: Exception) {
+                    plugin.logger.warning("NPC '${npc.id}' 的生物群系 '$biomeStr' 无效")
+                }
+            }
+        }
+
+        // 2. 装备
+        val equipment = entity.equipment ?: return
+        val slots = mapOf(
+            "helmet" to org.bukkit.inventory.EquipmentSlot.HEAD,
+            "chestplate" to org.bukkit.inventory.EquipmentSlot.CHEST,
+            "leggings" to org.bukkit.inventory.EquipmentSlot.LEGS,
+            "boots" to org.bukkit.inventory.EquipmentSlot.FEET,
+            "main_hand" to org.bukkit.inventory.EquipmentSlot.HAND,
+            "off_hand" to org.bukkit.inventory.EquipmentSlot.OFF_HAND
+        )
+        for ((key, slot) in slots) {
+            val matStr = npc.getData("appearance.$key") as? String ?: continue
+            try {
+                val mat = Material.valueOf(matStr.uppercase())
+                equipment.setItem(slot, org.bukkit.inventory.ItemStack(mat))
+            } catch (e: Exception) {
+                plugin.logger.warning("NPC '${npc.id}' 的装备 '$matStr' 无效")
+            }
+        }
     }
 
     // === 3. 交互处理 ===

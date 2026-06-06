@@ -1,5 +1,6 @@
 package com.panling.basic.quest
 
+import com.panling.basic.api.PlayerRace
 import com.panling.basic.quest.api.QuestObjective
 import com.panling.basic.quest.api.QuestReward
 
@@ -10,12 +11,13 @@ class Quest(
     val requiredLevel: Int,
     val preQuestId: String?, // 允许为空 (无前置)
     var startNpcId: String?, // 允许为空 (无起始NPC)，且可变 (Setter)
+    val requiredRace: PlayerRace?, // 种族限制 (null = 无限制)
     val objectives: List<QuestObjective>,
-    val rewards: List<QuestReward>
+    val rewards: List<QuestReward>,
+    val acceptDialog: List<String> = emptyList() // 接取任务时的多轮对话 (空列表 = 使用默认)
 ) {
 
-    // === [兼容性] 7 参数构造函数 ===
-    // 对应 Java 的: public Quest(..., List<QuestObjective> objectives, List<QuestReward> rewards)
+    // === [兼容性] 7 参数构造函数 (无 startNpcId, 无 requiredRace)
     constructor(
         id: String,
         name: String,
@@ -24,7 +26,7 @@ class Quest(
         preQuestId: String?,
         objectives: List<QuestObjective>,
         rewards: List<QuestReward>
-    ) : this(id, name, description, requiredLevel, preQuestId, null, objectives, rewards)
+    ) : this(id, name, description, requiredLevel, preQuestId, null, null, objectives, rewards)
 
     /**
      * 检查任务是否已完成

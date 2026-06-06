@@ -136,6 +136,7 @@ object BasicKeys {
 
     val MOB_ID = key("pl_mob_id")
     val MOB_OWNER = key("pl_mob_owner")
+    val NPC_ID = key("pl_npc_id")
 
     val ITEM_SKILL_LORE = key("item_skill_lore")
     val ITEM_SKILL_LORE_SUPPORT = key("item_skill_lore_support")

@@ -52,7 +52,7 @@ class InternalCommand(plugin: PanlingBasic) : SubCommand(plugin) {
 
         if (targetQuest != null) {
             val npc = plugin.npcManager.getNpc(npcId)
-            npc?.let { GiveQuestAction(targetQuest.id, "这是给你的委托。").execute(player, it) }
+            npc?.let { GiveQuestAction(targetQuest.id).execute(player, it) }
         } else {
             msg(player, "§e[NPC] §7我现在没有适合你的任务。")
         }
