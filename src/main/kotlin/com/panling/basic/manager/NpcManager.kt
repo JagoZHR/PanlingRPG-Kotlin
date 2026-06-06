@@ -171,7 +171,16 @@ class NpcManager(private val plugin: PanlingBasic) : Listener, Reloadable {
         }
         entityMap.clear()
 
-        // B. 扫描世界清理残留 (防止堆叠)
+        // B. [修复] 先加载所有 NPC 坐标所在的区块，再扫描清理
+        // 否则未加载区块中的旧实体会逃过清理，导致重启后叠堆
+        for (npc in npcMap.values) {
+            val chunk = npc.location.chunk
+            if (!chunk.isLoaded) {
+                chunk.load()
+            }
+        }
+
+        // C. 扫描世界清理残留
         for (world in Bukkit.getWorlds()) {
             for (entity in world.entities) {
                 if (entity.persistentDataContainer.has(KEY_IS_NPC, PersistentDataType.BYTE)) {
@@ -194,6 +203,17 @@ class NpcManager(private val plugin: PanlingBasic) : Listener, Reloadable {
         // 确保区块加载，否则 spawnEntity 可能返回 null 或生成失败
         if (!loc.chunk.isLoaded) {
             loc.chunk.load()
+        }
+
+        // [修复] 清理该 NPC 位置附近的旧重复实体（解决重启后叠堆问题）
+        // 只清理同 ID 的旧实体，避免误删邻近的其他 NPC
+        val nearby = loc.world.getNearbyEntities(loc, 2.0, 2.0, 2.0)
+        for (e in nearby) {
+            if (!e.persistentDataContainer.has(KEY_IS_NPC, PersistentDataType.BYTE)) continue
+            val existingId = e.persistentDataContainer.get(BasicKeys.NPC_ID, PersistentDataType.STRING)
+            if (existingId == npc.id) {
+                e.remove()
+            }
         }
 
         val entity = loc.world.spawnEntity(loc, npc.type) as LivingEntity
