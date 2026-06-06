@@ -4,13 +4,16 @@ package com.panling.basic.api
  * 锻造配方数据模型 (Immutable)
  */
 data class ForgeRecipe(
-    val id: String,              // 配方唯一ID
-    val targetItemId: String,    // 产出物品ID (引用 PanlingBasic 的 ItemID)
-    val category: ForgeCategory, // 新增：分类
-    val displayName: String,     // 显示名称
-    val materials: Map<String, Int>, // 原料需求: Map<ItemId, Amount>
-    val cost: Double,            // 金币消耗
-    val spiritCost: Long,        // [NEW] 灵力消耗
-    val timeSeconds: Int,        // 锻造耗时 (预留接口)
-    val requiresUnlock: Boolean  // [NEW] 是否需要解锁才能查看/制作
+    val id: String,
+    val targetItemId: String,
+    val category: ForgeCategory,
+    val displayName: String,
+    val materials: Map<String, Int>,
+    val cost: Double,
+    val spiritCost: Long,
+    val tier: Int,
+    val sub: String?,      // 流派 PO_JUN/GOLDEN_BELL/SNIPER/RANGER 或 null
+    val slot: String?,     // 部位 helmet/chest/leggings/boots 或 null
+    val timeSeconds: Int,
+    val requiresUnlock: Boolean
 )

@@ -112,11 +112,14 @@ class ForgeManager(private val plugin: PanlingBasic) : Reloadable {
         }
 
         val cost = section.getDouble("cost", 0.0)
-        val spiritCost = section.getLong("spirit_cost", 0L)  // [NEW] 灵力消耗
+        val spiritCost = section.getLong("spirit_cost", 0L)
+        val tier = section.getInt("tier", 0)
+        val sub = section.getString("sub", null)
+        val slot = section.getString("slot", null)
         val time = section.getInt("time", 0)
         val requiresUnlock = section.getBoolean("requires_unlock", false)
 
-        val recipe = ForgeRecipe(id, targetId, category, name, mats, cost, spiritCost, time, requiresUnlock)
+        val recipe = ForgeRecipe(id, targetId, category, name, mats, cost, spiritCost, tier, sub, slot, time, requiresUnlock)
         recipes[id] = recipe
     }
 
