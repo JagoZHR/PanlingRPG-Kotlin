@@ -308,7 +308,16 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
             val meta = item.itemMeta ?: return
 
             if (this.customModelData != null) meta.setCustomModelData(this.customModelData)
-            meta.displayName(Component.text(name).color(NamedTextColor.WHITE).decoration(TextDecoration.ITALIC, false))
+            // 如果名字已有 § 颜色码则保留，否则按稀有度自动染色
+            val display = Component.text(name)
+            val colored = if (name.indexOf('§') >= 0) {
+                display
+            } else if (rarity != null) {
+                display.color(rarity.color)
+            } else {
+                display.color(NamedTextColor.WHITE)
+            }
+            meta.displayName(colored.decoration(TextDecoration.ITALIC, false))
             meta.isUnbreakable = true
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_ENCHANTS)
 
