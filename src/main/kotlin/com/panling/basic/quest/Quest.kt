@@ -17,7 +17,9 @@ class Quest(
     val objectives: List<QuestObjective>,
     val rewards: List<QuestReward>,
     val acceptDialog: List<String> = emptyList(), // 接取任务时的多轮对话
-    val autoCompleteNpc: Boolean = true // 接取后是否自动完成当前 NPC 的对话目标 (默认 true)
+    val completeDialog: List<String> = emptyList(), // 完成任务时的多轮对话
+    val autoCompleteNpc: Boolean = true, // 接取后是否自动完成当前 NPC 的对话目标 (默认 true)
+    val autoAcceptNext: String? = null // 完成后自动接取的下一个任务 ID
 ) {
 
     // === [兼容性] 7 参数构造函数 (无 startNpcId, 无 requiredRace)

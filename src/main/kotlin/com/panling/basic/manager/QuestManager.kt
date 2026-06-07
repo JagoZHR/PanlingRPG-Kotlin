@@ -135,6 +135,36 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
                 reward.give(player)
                 player.sendMessage("§e获得奖励: ${reward.display}")
             }
+
+            // 播放交任务对话
+            if (progress.quest.completeDialog.isNotEmpty()) {
+                showDialog(player, progress.quest.completeDialog)
+            }
+
+            // 自动接取下一环任务
+            val nextId = progress.quest.autoAcceptNext
+            if (nextId != null) {
+                val nextQuest = questRegistry[nextId]
+                if (nextQuest != null && isQuestAvailable(player, nextQuest)) {
+                    plugin.server.scheduler.runTaskLater(plugin, Runnable {
+                        acceptQuest(player, nextId)
+                        // 显示接取对话
+                        if (nextQuest.acceptDialog.isNotEmpty()) {
+                            showDialog(player, nextQuest.acceptDialog)
+                        }
+                    }, 40L) // 2 秒延迟，让完成提示先显示
+                }
+            }
+        }
+    }
+
+    /** 逐行延迟显示对话 */
+    private fun showDialog(player: Player, lines: List<String>) {
+        val scheduler = plugin.server.scheduler
+        for ((i, line) in lines.withIndex()) {
+            scheduler.runTaskLater(plugin, Runnable {
+                player.sendMessage(line.replace("&", "§"))
+            }, (i * 40L) + 60L)
         }
     }
 

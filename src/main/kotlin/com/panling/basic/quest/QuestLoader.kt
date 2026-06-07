@@ -183,8 +183,10 @@ class QuestLoader(
 
             // 5. 构建并注册
             val dialogList = yaml.getStringList("accept_dialog")
+            val completeDialogList = yaml.getStringList("complete_dialog")
             val autoComplete = yaml.getBoolean("auto_complete_npc", true)
-            val quest = Quest(id, name, desc, reqLevel, preQuest, allPreQuests, preQuestsAll, startNpc, reqRace, objectives, rewards, dialogList, autoComplete)
+            val autoAccept = yaml.getString("auto_accept") // 完成后自动接取的下一个任务
+            val quest = Quest(id, name, desc, reqLevel, preQuest, allPreQuests, preQuestsAll, startNpc, reqRace, objectives, rewards, dialogList, completeDialogList, autoComplete, autoAccept)
             questManager.registerQuest(quest)
             plugin.logger.info(" - 已加载任务: $name ($id)")
 

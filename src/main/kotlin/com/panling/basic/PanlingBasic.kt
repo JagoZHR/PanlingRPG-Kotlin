@@ -189,10 +189,12 @@ class PanlingBasic : JavaPlugin() {
             registerEvents(DungeonEntryListener(this@PanlingBasic), this@PanlingBasic)
         }
 
-        // 延迟修复任务
+        // 延迟修复任务 + 世界装饰物初始化（需要 world 已加载）
         server.scheduler.runTaskLater(this, Runnable {
             val fixed = locationManager.restoreMissingEntities()
             if (fixed > 0) logger.info("自动修复了 $fixed 个丢失的 RPG 交互实体。")
+            // 世界装饰物自动扫描加载
+            com.panling.basic.world.DecorationManager(this).loadAll()
         }, 100L)
 
         // 9. 注册指令系统
