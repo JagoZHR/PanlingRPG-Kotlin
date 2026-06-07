@@ -314,9 +314,10 @@ object LoreManager {
                     }
                 }
 
-                addPassiveLines(lore, pId, "被动")
-                addPassiveLines(lore, pAtk, "攻击")
-                addPassiveLines(lore, pHit, "受击")
+                // 被动技能描述统一由 skill_lore 字段展示，不再自动生成
+                // addPassiveLines(lore, pId, "被动")
+                // addPassiveLines(lore, pAtk, "攻击")
+                // addPassiveLines(lore, pHit, "受击")
 
                 if (!finalSkillLore.isNullOrEmpty()) {
                     if (finalSkillLore!!.contains("{DYNAMIC_DESC}")) {

@@ -125,7 +125,10 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
 
     fun isItemAllowedForClass(itemId: String, pc: PlayerClass): Boolean {
         val tmpl = templates[itemId] ?: return false
-        if (!pc.isAllowedWeapon(tmpl.material)) return false
+        // FABAO 和 ACCESSORY 不检查武器材质，由 StatCalculator 中独立分支验证
+        if (tmpl.itemType != "FABAO" && tmpl.itemType != "ACCESSORY") {
+            if (!pc.isAllowedWeapon(tmpl.material)) return false
+        }
 
         if (tmpl.reqClass != null) {
             try {
@@ -225,6 +228,9 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
 
         val itemModel: String? = section.getString("item_model")
         val equippableSection: ConfigurationSection? = section.getConfigurationSection("equippable")
+        val shieldBannerSection: ConfigurationSection? = section.getConfigurationSection("shield_banner")
+        var shieldBannerBase: String? = null
+        var shieldBannerPatterns: List<String> = emptyList()
         val moneyValue: Double? = if (section.contains("money_value")) section.getDouble("money_value") else null
         val level: Int? = if (section.contains("level")) section.getInt("level") else null
         val mageWeaponType: String? = section.getString("mage_weapon_type")?.uppercase()
@@ -290,6 +296,12 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
                 } catch (e: Exception) {
                     activeSkills[SkillTrigger.RIGHT_CLICK] = sid
                 }
+            }
+
+            // 盾牌花纹
+            shieldBannerSection?.let {
+                shieldBannerBase = it.getString("base")
+                shieldBannerPatterns = it.getStringList("patterns")
             }
         }
 
@@ -492,7 +504,49 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
                 } catch (ignored: Throwable) {}
             }
 
+            // 盾牌花纹（清空旧花纹防止累积 + 隐藏 Lore 中的花纹描述）
+            if (this.material == Material.SHIELD && shieldBannerBase != null) {
+                try {
+                    if (meta is org.bukkit.inventory.meta.BlockStateMeta) {
+                        val banner = meta.blockState as? org.bukkit.block.Banner
+                        if (banner != null) {
+                            val patternCount = banner.numberOfPatterns()
+                            for (i in patternCount - 1 downTo 0) {
+                                banner.removePattern(i)
+                            }
+                            banner.setBaseColor(org.bukkit.DyeColor.valueOf(shieldBannerBase!!.uppercase()))
+                            for (patternStr in shieldBannerPatterns) {
+                                val parts = patternStr.split(":")
+                                if (parts.size == 2) {
+                                    banner.addPattern(org.bukkit.block.banner.Pattern(
+                                        org.bukkit.DyeColor.valueOf(parts[0].uppercase()),
+                                        org.bukkit.block.banner.PatternType.valueOf(parts[1].uppercase())
+                                    ))
+                                }
+                            }
+                            banner.update()
+                            meta.setBlockState(banner)
+                        }
+                    }
+                } catch (ignored: Throwable) {}
+
+            }
+
             item.itemMeta = meta
+
+            // 隐藏盾牌花纹的 Lore 描述（通过 Paper DataComponent API）
+            if (this.material == Material.SHIELD && shieldBannerBase != null) {
+                try {
+                    val display = io.papermc.paper.datacomponent.item.TooltipDisplay.tooltipDisplay()
+                        .addHiddenComponents(
+                            io.papermc.paper.datacomponent.DataComponentTypes.BANNER_PATTERNS,
+                            io.papermc.paper.datacomponent.DataComponentTypes.BASE_COLOR
+                        )
+                        .build()
+                    item.setData(io.papermc.paper.datacomponent.DataComponentTypes.TOOLTIP_DISPLAY, display)
+                } catch (ignored: Throwable) {}
+
+            }
             LoreManager.updateItemLore(item, player)
         }
 
