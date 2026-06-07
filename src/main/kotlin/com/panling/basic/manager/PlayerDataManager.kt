@@ -170,7 +170,7 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
     fun setActiveSlot(player: Player, slot: Int) {
         var finalSlot = slot
         if (getPlayerClass(player) == PlayerClass.MAGE) return
-        if (finalSlot != 40) finalSlot = 0
+        if (finalSlot != -1) finalSlot = 0
 
         player.persistentDataContainer.set(BasicKeys.DATA_ACTIVE_SLOT, PersistentDataType.INTEGER, finalSlot)
         activeSlotCache[player.uniqueId] = finalSlot
@@ -184,7 +184,7 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
         if (activeSlotCache.containsKey(uuid)) return activeSlotCache[uuid]!!
 
         var slot = player.persistentDataContainer.get(BasicKeys.DATA_ACTIVE_SLOT, PersistentDataType.INTEGER) ?: 0
-        if (slot != 0 && slot != 40) slot = 0
+        if (slot != 0 && slot != -1) slot = 0
 
         activeSlotCache[uuid] = slot
         return slot

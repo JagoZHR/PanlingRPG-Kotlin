@@ -200,7 +200,10 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
         val stats = HashMap<NamespacedKey, Double>()
         val reqClass: String? = section.getString("class")
 
-        var fabaoSlot: Int? = if (section.contains("fabao_slot")) section.getInt("fabao_slot") - 1 else null
+        var fabaoSlot: Int? = if (section.contains("fabao_slot")) {
+            val raw = section.getInt("fabao_slot")
+            if (raw == -1) -1 else raw - 1  // -1 = 副手，不偏移；正数 = 1-indexed → 0-indexed
+        } else null
         var accessorySlot: Int? = if (section.contains("accessory_slot")) section.getInt("accessory_slot") - 1 else null
 
         val attackSpeed: Double? = if (section.contains("attack_speed")) section.getDouble("attack_speed") else null

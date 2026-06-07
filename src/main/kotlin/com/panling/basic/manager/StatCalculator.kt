@@ -203,19 +203,26 @@ class StatCalculator(
 
         // A. 遍历背包
         val contents = player.inventory.contents
-        // 使用索引遍历，因为需要 index 判读槽位
         for (i in contents.indices) {
             val item = contents[i]
-            // 注意：Kotlin 中 contents 可能包含 null，必须检查
             if (item == null || !item.hasItemMeta()) continue
-
-            // 状态校验 (包含 NBT 读取)
             val status = getValidationStatus(player, item, i, activeSlot, pc)
-
             if (status == STATUS_ACTIVE || status == STATUS_FABAO_ACTIVE) {
                 val type = item.itemMeta?.persistentDataContainer?.get(BasicKeys.ITEM_TYPE_TAG, PersistentDataType.STRING)
                 if ("ELEMENT" == type) continue
                 items.add(item)
+            }
+        }
+
+        // A2. [1.20.5+兼容] 显式检查副手 — contents 数组已不包含 off-hand
+        val offHand = player.inventory.itemInOffHand
+        if (offHand.hasItemMeta()) {
+            val status = getValidationStatus(player, offHand, -1, activeSlot, pc)
+            if (status == STATUS_ACTIVE || status == STATUS_FABAO_ACTIVE) {
+                val type = offHand.itemMeta?.persistentDataContainer?.get(BasicKeys.ITEM_TYPE_TAG, PersistentDataType.STRING)
+                if ("ELEMENT" != type) {
+                    items.add(offHand)
+                }
             }
         }
 
@@ -310,7 +317,7 @@ class StatCalculator(
             if (pc != PlayerClass.MAGE) return STATUS_WRONG_CLASS
         }
 
-        val isOffHandSlot = (slotIndex == 40)
+        val isOffHandSlot = (slotIndex == -1)
 
         if (PlayerClass.isArmor(item.type)) {
             // 36=Boots, 37=Leggings, 38=Chestplate, 39=Helmet
@@ -341,12 +348,12 @@ class StatCalculator(
         val configSlot = pdc?.get(BasicKeys.FEATURE_FABAO_SLOT, PersistentDataType.INTEGER) ?: 0
 
         if (dataManager.getPlayerClass(player) == PlayerClass.MAGE) {
-            return if (configSlot == 40) 40 else (if (configSlot == -1) 40 else configSlot)
+            return if (configSlot == -1) -1 else configSlot
         }
 
         val activeSlot = dataManager.getActiveSlot(player)
         return if (configSlot == activeSlot) {
-            if (activeSlot == 0) 40 else 0
+            if (activeSlot == 0) -1 else 0
         } else {
             configSlot
         }

@@ -68,6 +68,12 @@ class InventoryListener(
             }
         }
 
+        // [1.20.5+兼容] 显式检查副手 — contents 数组已不包含 off-hand
+        val offHand = player.inventory.itemInOffHand
+        if (offHand.hasItemMeta()) {
+            checkAndRefresh(player, offHand, -1, activeSlot, playerClass)
+        }
+
         // 调用 StatCalculator 的同步方法 (此时玩家身上穿的已经是最终装备)
         statCalculator.syncPlayerAttributes(player)
     }
@@ -96,8 +102,8 @@ class InventoryListener(
         val type = pdc.get(BasicKeys.ITEM_TYPE_TAG, PersistentDataType.STRING)
 
         if ("MATERIAL" == type) {
-            // 只有当玩家把它放在快捷栏 (0-8) 或者副手 (40) 时才提示
-            if (slotIndex in 0..8 || slotIndex == 40) {
+            // 只有当玩家把它放在快捷栏 (0-8) 或者副手 (-1) 时才提示
+            if (slotIndex in 0..8 || slotIndex == -1) {
                 LoreManager.refreshStatus(item, StatCalculator.STATUS_MATERIAL_ONLY, activeSlot, 0)
                 return
             }

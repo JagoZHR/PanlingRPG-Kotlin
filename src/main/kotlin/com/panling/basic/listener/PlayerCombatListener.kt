@@ -89,7 +89,8 @@ class PlayerCombatListener(
     @EventHandler
     fun onInteract(event: PlayerInteractEvent) {
         if (event.action == Action.PHYSICAL) return
-        if (event.hand != EquipmentSlot.HAND) return
+        // 支持主手和副手
+        val isOffHand = (event.hand == EquipmentSlot.OFF_HAND)
 
         val item = event.item
         val isBow = item != null && item.type.name.contains("BOW")
@@ -97,12 +98,14 @@ class PlayerCombatListener(
         // 1. [关键修正] 先计算 trigger
         val trigger = getTrigger(event.action, event.player.isSneaking)
 
-        // 2. 智能过滤弓弩：如果是右键/蹲右键，跳过 (交由 onShoot 处理)
+        // 2. 智能过滤弓弩
         if (isBow && (trigger == SkillTrigger.RIGHT_CLICK || trigger == SkillTrigger.SHIFT_RIGHT)) {
             return
         }
 
-        processActiveTrigger(event.player, item, trigger, event, null)
+        // 3. 根据操作手传递正确的 slotIndex
+        val slotIndex = if (isOffHand) -1 else event.player.inventory.heldItemSlot
+        processActiveTrigger(event.player, item, trigger, event, null, slotIndex)
     }
 
     @EventHandler
@@ -115,7 +118,7 @@ class PlayerCombatListener(
         val isOffHand = (event.hand == EquipmentSlot.OFF_HAND)
         val currentSlot = player.inventory.heldItemSlot
 
-        if (!((isOffHand && activeSlot == 40) || (!isOffHand && activeSlot == currentSlot))) {
+        if (!((isOffHand && activeSlot == -1) || (!isOffHand && activeSlot == currentSlot))) {
             event.isCancelled = true
             player.sendActionBar(Component.text("§c请使用激活位的武器！").color(NamedTextColor.RED))
             return
@@ -346,7 +349,8 @@ class PlayerCombatListener(
             val shield = if (mainHand.type == Material.SHIELD) mainHand else offHand
 
             if (shield.type == Material.SHIELD) {
-                processActiveTrigger(victim, shield, SkillTrigger.BLOCK, event, null)
+                val shieldSlot = if (mainHand.type == Material.SHIELD) victim.inventory.heldItemSlot else -1
+                processActiveTrigger(victim, shield, SkillTrigger.BLOCK, event, null, shieldSlot)
             }
         }
 
@@ -456,7 +460,8 @@ class PlayerCombatListener(
         item: ItemStack?,
         trigger: SkillTrigger,
         eventHandle: Any,
-        projectile: AbstractArrow?
+        projectile: AbstractArrow?,
+        slotIndex: Int = player.inventory.heldItemSlot
     ) {
         if (item == null || trigger == SkillTrigger.NONE) return
         val key = BasicKeys.TRIGGER_KEYS[trigger] ?: return
@@ -466,7 +471,7 @@ class PlayerCombatListener(
 
         // 状态校验
         val status = statCalculator.getValidationStatus(
-            player, item, player.inventory.heldItemSlot,
+            player, item, slotIndex,
             dataManager.getActiveSlot(player), dataManager.getPlayerClass(player)
         )
         if (status != StatCalculator.STATUS_ACTIVE && status != StatCalculator.STATUS_FABAO_ACTIVE) return

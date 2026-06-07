@@ -424,7 +424,7 @@ object LoreManager {
             6 -> Component.text("✖ 请放入饰品栏以激活").color(NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)
             7 -> Component.text("✔ 法宝已激活").color(NamedTextColor.GOLD).decoration(TextDecoration.BOLD, true).decoration(TextDecoration.ITALIC, false)
             8 -> {
-                val slotName = if (targetSlotIndex == 40) "副手" else "栏位 ${targetSlotIndex + 1}"
+                val slotName = if (targetSlotIndex == -1) "副手" else "栏位 ${targetSlotIndex + 1}"
                 Component.text("✖ 须放入 $slotName 激活").color(NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)
             }
             9 -> Component.text("✖ 未获得该物品的使用资格").color(NamedTextColor.DARK_RED).decoration(TextDecoration.BOLD, true).decoration(TextDecoration.ITALIC, false)
@@ -432,7 +432,10 @@ object LoreManager {
             11 -> Component.text("✖ 等级不足").color(NamedTextColor.RED).decoration(TextDecoration.BOLD, true).decoration(TextDecoration.ITALIC, false)
             // [新增] 状态 12 的显示文案
             12 -> Component.text("✖ 灵魂绑定：非拥有者无法使用").color(NamedTextColor.DARK_RED).decoration(TextDecoration.BOLD, true).decoration(TextDecoration.ITALIC, false)
-            else -> Component.text("✖ 请放入激活位 [${activeSlotIndex + 1}] 以激活").color(NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)
+            else -> {
+                val slotName = if (activeSlotIndex == -1) "副手" else "栏位 ${activeSlotIndex + 1}"
+                Component.text("✖ 请放入激活位 [$slotName] 以激活").color(NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)
+            }
         }
 
         lore.add(statusLine)

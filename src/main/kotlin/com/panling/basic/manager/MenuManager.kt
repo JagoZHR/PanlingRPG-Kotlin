@@ -509,8 +509,8 @@ class MenuManager(
             // === [核心修改] 处理切换按钮 ===
             if ("TOGGLE_HAND" == action) {
                 val current = dataManager.getActiveSlot(player)
-                // 0 -> 40, 40 -> 0
-                val next = if (current == 0) 40 else 0
+                // 0 -> -1 (副手), -1 -> 0 (主手)
+                val next = if (current == 0) -1 else 0
 
                 dataManager.setActiveSlot(player, next)
                 player.playSound(player.location, Sound.UI_BUTTON_CLICK, 1f, 1f)

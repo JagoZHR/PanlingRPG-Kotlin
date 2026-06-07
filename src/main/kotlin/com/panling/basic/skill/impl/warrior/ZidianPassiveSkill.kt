@@ -103,7 +103,7 @@ class ZidianPassiveSkill(private val plugin: PanlingBasic) :
                 val activeSlot = plugin.playerDataManager.getActiveSlot(p)
 
                 val activeItem: ItemStack? = when {
-                    activeSlot == 40 -> p.inventory.itemInOffHand
+                    activeSlot == -1 -> p.inventory.itemInOffHand
                     activeSlot >= 0 && activeSlot < p.inventory.size -> p.inventory.getItem(activeSlot)
                     else -> null
                 }

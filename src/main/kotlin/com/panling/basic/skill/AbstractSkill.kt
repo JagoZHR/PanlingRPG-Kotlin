@@ -169,7 +169,7 @@ abstract class AbstractSkill(
 
                     // 简单的判定逻辑：如果源物品和主手不一样，但和副手一样，那就是副手
                     if (!source.isSimilar(mainHand) && source.isSimilar(offHand)) {
-                        slot = 40
+                        slot = -1
                     }
                 }
 
