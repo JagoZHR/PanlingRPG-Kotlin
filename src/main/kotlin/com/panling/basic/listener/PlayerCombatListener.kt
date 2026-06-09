@@ -113,7 +113,8 @@ class PlayerCombatListener(
         val player = event.entity as? Player ?: return
         val arrow = event.projectile as? AbstractArrow ?: return
 
-        // 校验武器位
+        // 原版/数据包武器不拦截，走原版逻辑
+        if (!hasRpgItemId(event.bow)) return
         val activeSlot = dataManager.getActiveSlot(player)
         val isOffHand = (event.hand == EquipmentSlot.OFF_HAND)
         val currentSlot = player.inventory.heldItemSlot
@@ -298,6 +299,9 @@ class PlayerCombatListener(
             }
         }
 
+        // 原版/数据包武器：跳过所有插件处理，保留原版伤害
+        if (attackerPlayer != null && !hasRpgItemId(attackerPlayer.inventory.itemInMainHand)) return
+
         // 阵营检查
         if (attackerPlayer != null && !mobManager.canAttack(attackerPlayer, victim)) {
             event.isCancelled = true
@@ -454,6 +458,12 @@ class PlayerCombatListener(
     }
 
     // === 辅助方法 ===
+
+    /** 检查物品是否拥有 RPG 物品 ID（插件物品） */
+    private fun hasRpgItemId(item: ItemStack?): Boolean {
+        if (item == null || !item.hasItemMeta()) return false
+        return item.itemMeta!!.persistentDataContainer.has(BasicKeys.ITEM_ID, PersistentDataType.STRING)
+    }
 
     private fun processActiveTrigger(
         player: Player,
