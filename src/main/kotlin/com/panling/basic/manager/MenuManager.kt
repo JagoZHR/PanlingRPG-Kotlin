@@ -29,6 +29,7 @@ import org.bukkit.persistence.PersistentDataType
 import org.bukkit.scheduler.BukkitRunnable
 import java.util.ArrayList
 import java.util.HashMap
+import java.util.UUID
 import kotlin.math.min
 
 class MenuManager(
@@ -36,13 +37,16 @@ class MenuManager(
     private val dataManager: PlayerDataManager,
     private val accessoryManager: AccessoryManager,
     private val statCalculator: StatCalculator,
-    // [NEW] 冷却管理器通常是全局单例或通过插件获取，这里为了保持构造函数签名一致，我们在 init 中初始化或从 plugin 获取
-    // 原 Java 代码是在构造函数里 new CooldownManager()，这里保持一致
 ) : Listener {
 
     private val cooldownManager = CooldownManager()
     val menuItem: ItemStack
     private var bankInterface: BankUI? = null
+
+    // 自杀双击确认：玩家UUID → 第一次点击时间戳
+    private val suicideConfirm = HashMap<UUID, Long>()
+    private val SUICIDE_TIMEOUT_MS = 5000L
+    private val RESUPPLY_COST = 100.0
 
     init {
         // 初始化菜单物品
@@ -325,7 +329,37 @@ class MenuManager(
         qm.lore(qLore)
         qm.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "OPEN_QUESTS")
         questBtn.itemMeta = qm
-        fullInv.setItem(18, questBtn) // [MODIFIED] 设置在 Slot 22 (注释说是22，但代码写的是18，保持Java原样)
+        fullInv.setItem(18, questBtn)
+
+        // === Slot 19: 脱困（双击自杀）===
+        val suicideBtn = ItemStack(Material.TNT)
+        val suicideMeta = suicideBtn.itemMeta
+        suicideMeta.displayName(Component.text("§c§l[ 脱困 ]").decoration(TextDecoration.ITALIC, false))
+        val suicideLore = ArrayList<Component>()
+        suicideLore.add(Component.text("§7如果你卡住了，可以自尽脱困。").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
+        suicideLore.add(Component.empty())
+        suicideLore.add(Component.text("§c§l⚠ 点两次确认自杀").decoration(TextDecoration.ITALIC, false))
+        suicideLore.add(Component.text("§8(限时 5 秒)").decoration(TextDecoration.ITALIC, false))
+        suicideMeta.lore(suicideLore)
+        suicideMeta.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "SUICIDE")
+        suicideBtn.itemMeta = suicideMeta
+        fullInv.setItem(19, suicideBtn)
+
+        // === Slot 20: 补给（100铜钱重领）===
+        val resupplyBtn = ItemStack(Material.CHEST)
+        val resupplyMeta = resupplyBtn.itemMeta
+        resupplyMeta.displayName(Component.text("§a§l[ 补给 ]").decoration(TextDecoration.ITALIC, false))
+        val resupplyLore = ArrayList<Component>()
+        resupplyLore.add(Component.text("§7消耗 §e100 铜钱 §7重新领取你的").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
+        resupplyLore.add(Component.text("§7初始职业和种族礼包。").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
+        resupplyLore.add(Component.empty())
+        val currentMoney = dataManager.getMoney(player)
+        resupplyLore.add(Component.text("§7当前余额: §e${String.format("%.1f", currentMoney)}")
+            .decoration(TextDecoration.ITALIC, false))
+        resupplyMeta.lore(resupplyLore)
+        resupplyMeta.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "RESUPPLY")
+        resupplyBtn.itemMeta = resupplyMeta
+        fullInv.setItem(20, resupplyBtn)
 
         // === Slot 22: 随身仓库 (原定计划) ===
         val warehouseBtn = ItemStack(Material.CHEST)
@@ -526,6 +560,18 @@ class MenuManager(
                 plugin.partyUI.openGUI(player)
                 return
             }
+
+            // === 脱困：双击自杀 ===
+            if ("SUICIDE" == action) {
+                handleSuicide(player)
+                return
+            }
+
+            // === 补给：100铜钱重领起始礼包 ===
+            if ("RESUPPLY" == action) {
+                handleResupply(player)
+                return
+            }
         }
     }
 
@@ -626,6 +672,49 @@ class MenuManager(
             // 刷新界面 (更新余额显示)
             openRefineMenu(player)
         }
+    }
+
+    // ── 脱困：双击自杀 ──
+    private fun handleSuicide(player: Player) {
+        val uuid = player.uniqueId
+        val now = System.currentTimeMillis()
+        val lastClick = suicideConfirm[uuid]
+
+        if (lastClick == null || now - lastClick > SUICIDE_TIMEOUT_MS) {
+            // 第一次点击 / 超时重置
+            suicideConfirm[uuid] = now
+            player.sendMessage("§c§l⚠ 再点一次确认自杀！（5秒内有效）")
+            player.playSound(player.location, Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 0.5f)
+            return
+        }
+
+        // 第二次点击 → 确认自杀
+        suicideConfirm.remove(uuid)
+        player.sendMessage("§c已执行脱困...")
+        player.health = 0.0
+    }
+
+    // ── 补给：100铜钱重领起始礼包 ──
+    private fun handleResupply(player: Player) {
+        if (!dataManager.takeMoney(player, RESUPPLY_COST)) {
+            player.sendMessage("§c铜钱不足！需要 100 铜钱。")
+            player.playSound(player.location, Sound.ENTITY_VILLAGER_NO, 1f, 1f)
+            return
+        }
+
+        val race = dataManager.getPlayerRace(player)
+        val playerClass = dataManager.getPlayerClass(player)
+
+        plugin.itemKitManager.giveKits(player,
+            "starter_${playerClass.name.lowercase()}",
+            "race_${race.name.lowercase()}"
+        )
+
+        player.sendMessage("§a补给已发放！消耗 100 铜钱。")
+        player.playSound(player.location, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
+
+        // 刷新菜单显示余额
+        openMenu(player)
     }
 
     class MenuHolder : InventoryHolder {

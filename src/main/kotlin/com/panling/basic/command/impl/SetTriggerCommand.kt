@@ -14,8 +14,8 @@ class SetTriggerCommand(plugin: PanlingBasic) : SubCommand(plugin) {
     override fun perform(sender: CommandSender, args: Array<out String>) {
         val player = asPlayer(sender) ?: return
 
-        if (args.size < 2) {
-            msg(sender, "§c用法: /plbasic settrigger <类型> <值>")
+        if (args.isEmpty()) {
+            msg(sender, "§c用法: /plbasic settrigger <类型> [值]")
             return
         }
 
@@ -27,6 +27,19 @@ class SetTriggerCommand(plugin: PanlingBasic) : SubCommand(plugin) {
 
         try {
             val type = LocationManager.TriggerType.valueOf(args[0].uppercase())
+
+            // ENTER_WORLD 不需要值
+            if (type == LocationManager.TriggerType.ENTER_WORLD) {
+                plugin.locationManager.addTrigger(targetBlock.location, type, "enter_world")
+                msg(sender, "§a成功设置 [ENTER_WORLD] 触发器！")
+                msg(sender, "§7交互此方块将进入大世界。")
+                return
+            }
+
+            if (args.size < 2) {
+                msg(sender, "§c用法: /plbasic settrigger <类型> <值>")
+                return
+            }
 
             // 智能大小写处理
             val value = if (type == LocationManager.TriggerType.TELEPORT || type == LocationManager.TriggerType.DUNGEON) {
@@ -71,9 +84,8 @@ class SetTriggerCommand(plugin: PanlingBasic) : SubCommand(plugin) {
                     LocationManager.TriggerType.CLASS -> PlayerClass.values().map { it.name }
                     LocationManager.TriggerType.RACE -> PlayerRace.values().map { it.name }
                     LocationManager.TriggerType.TELEPORT -> plugin.locationManager.getWaypointNames().toList()
-                    // [新增] 补全副本 ID (需要 DungeonManager 提供 getTemplateIds 方法)
-                    // 假设 plugin.dungeonManager.templates.keys 是可访问的
                     LocationManager.TriggerType.DUNGEON -> plugin.dungeonManager.getTemplateIds()
+                    LocationManager.TriggerType.ENTER_WORLD -> emptyList()
                 }
             } catch (e: Exception) {
                 emptyList()

@@ -58,6 +58,7 @@ class PanlingBasic : JavaPlugin() {
     lateinit var reloadManager: ReloadManager
     lateinit var dungeonManager: DungeonManager
     lateinit var worldScriptManager: WorldScriptManager
+    lateinit var itemKitManager: ItemKitManager
 
     // 内部使用的管理器，不需要公开 getter 也可以直接 private
     lateinit var commandManager: CommandManager
@@ -121,6 +122,9 @@ class PanlingBasic : JavaPlugin() {
 
         // 锻造模块
         forgeManager = ForgeManager(this)
+
+        // 礼包模块
+        itemKitManager = ItemKitManager(this)
 
         // 5. 业务逻辑层
         invListener = InventoryListener(this, playerDataManager, itemManager, statCalculator)
@@ -187,6 +191,7 @@ class PanlingBasic : JavaPlugin() {
             // [新增] 注册副本入口 UI 监听器
             // 确保引入 import com.panling.basic.listener.DungeonEntryListener
             registerEvents(DungeonEntryListener(this@PanlingBasic), this@PanlingBasic)
+            registerEvents(RespawnListener(this@PanlingBasic), this@PanlingBasic)
         }
 
         // 延迟修复任务 + 世界装饰物初始化（需要 world 已加载）

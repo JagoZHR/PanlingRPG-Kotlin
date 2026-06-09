@@ -49,7 +49,8 @@ class LocationManager(private val plugin: PanlingBasic) : Reloadable {
         CLASS,    // 转职
         RACE,     // 转种族
         TELEPORT,  // 传送
-        DUNGEON
+        DUNGEON,  // 副本入口
+        ENTER_WORLD  // 进入大世界（清空数据 + 传送 + 发起始物品）
     }
 
     data class TriggerData(val type: TriggerType, val value: String)
@@ -150,6 +151,11 @@ class LocationManager(private val plugin: PanlingBasic) : Reloadable {
             } else {
                 player.sendMessage("§c[错误] 副本配置不存在: $value")
             }
+        }
+
+        // 5. [新增] 进入大世界逻辑
+        handlers[TriggerType.ENTER_WORLD] = TriggerHandler { player, _ ->
+            com.panling.basic.world.EnterWorldHandler(plugin).execute(player)
         }
     }
 

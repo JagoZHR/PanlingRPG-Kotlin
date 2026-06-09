@@ -526,4 +526,35 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
         }
         return false
     }
+
+    // === [NEW] 清空玩家所有数据（进入大世界时使用） ===
+    fun clearAllPlayerData(player: Player) {
+        // 1. 清空背包
+        player.inventory.clear()
+
+        // 2. 清空末影箱
+        player.enderChest.clear()
+
+        // 3. 清空所有 PDC
+        val pdc = player.persistentDataContainer
+        for (key in HashSet(pdc.keys)) {
+            pdc.remove(key)
+        }
+
+        // 4. 清空所有内存缓存
+        onPlayerQuit(player)
+
+        // 5. 重置原版属性（生命、等级、经验等）
+        player.level = 0
+        player.exp = 0f
+        player.health = 20.0
+        player.foodLevel = 20
+        player.saturation = 5f
+        player.exhaustion = 0f
+
+        // 清除状态效果
+        for (effect in player.activePotionEffects) {
+            player.removePotionEffect(effect.type)
+        }
+    }
 }

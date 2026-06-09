@@ -15,8 +15,8 @@ class SetEntityTriggerCommand(plugin: PanlingBasic) : SubCommand(plugin) {
     override fun perform(sender: CommandSender, args: Array<out String>) {
         val player = asPlayer(sender) ?: return
 
-        if (args.size < 2) {
-            msg(sender, "§c用法: /plbasic setentitytrigger <类型> <值>")
+        if (args.isEmpty()) {
+            msg(sender, "§c用法: /plbasic setentitytrigger <类型> [值]")
             return
         }
 
@@ -28,6 +28,24 @@ class SetEntityTriggerCommand(plugin: PanlingBasic) : SubCommand(plugin) {
 
         try {
             val type = LocationManager.TriggerType.valueOf(args[0].uppercase())
+
+            // ENTER_WORLD 不需要值
+            if (type == LocationManager.TriggerType.ENTER_WORLD) {
+                plugin.locationManager.addEntityTrigger(targetEntity.uniqueId, type, "enter_world")
+                plugin.locationManager.registerManagedEntity(targetEntity)
+                targetEntity.isGlowing = true
+                Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                    targetEntity.isGlowing = false
+                }, 20L)
+                msg(sender, "§a成功绑定 [ENTER_WORLD] 触发器到实体！")
+                return
+            }
+
+            if (args.size < 2) {
+                msg(sender, "§c用法: /plbasic setentitytrigger <类型> <值>")
+                return
+            }
+
             val value = if (type == LocationManager.TriggerType.TELEPORT || type == LocationManager.TriggerType.DUNGEON) args[1] else args[1].uppercase()
 
             when (type) {
@@ -45,7 +63,6 @@ class SetEntityTriggerCommand(plugin: PanlingBasic) : SubCommand(plugin) {
 
             // 对接 LocationManager.kt 的方法
             plugin.locationManager.addEntityTrigger(targetEntity.uniqueId, type, value)
-            plugin.locationManager.registerManagedEntity(targetEntity)
 
             msg(sender, "§a成功绑定触发器到实体！UUID: ${targetEntity.uniqueId}")
 
@@ -72,10 +89,9 @@ class SetEntityTriggerCommand(plugin: PanlingBasic) : SubCommand(plugin) {
                     when (type) {
                         LocationManager.TriggerType.CLASS -> PlayerClass.values().map { it.name }
                         LocationManager.TriggerType.RACE -> PlayerRace.values().map { it.name }
-                        // 修正点：显式调用方法 getWaypointNames() 并转为 List
                         LocationManager.TriggerType.TELEPORT -> plugin.locationManager.getWaypointNames().toList()
                         LocationManager.TriggerType.DUNGEON -> plugin.dungeonManager.getTemplateIds()
-                        else -> emptyList()
+                        LocationManager.TriggerType.ENTER_WORLD -> emptyList()
                     }
                 } catch (e: Exception) {
                     emptyList()
