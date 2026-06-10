@@ -380,6 +380,29 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
         return getUnlockedRecipes(player).contains(recipeId)
     }
 
+    // =========================================================
+    // [NEW] 传送点解锁
+    // =========================================================
+
+    fun getUnlockedTeleports(player: Player): List<String> {
+        val data = player.persistentDataContainer.get(TELEPORT_KEY, PersistentDataType.STRING)
+        return if (data.isNullOrEmpty()) emptyList() else data.split(",")
+    }
+
+    fun isTeleportUnlocked(player: Player, pointId: String): Boolean {
+        return getUnlockedTeleports(player).contains(pointId)
+    }
+
+    fun unlockTeleport(player: Player, pointId: String) {
+        val list = getUnlockedTeleports(player).toMutableList()
+        if (pointId !in list) {
+            list.add(pointId)
+            player.persistentDataContainer.set(TELEPORT_KEY, PersistentDataType.STRING, list.joinToString(","))
+        }
+    }
+
+    private val TELEPORT_KEY = NamespacedKey(plugin, "data_teleports")
+
     fun addUnlockedRecipe(player: Player, recipeId: String) {
         val list = getUnlockedRecipes(player)
         if (!list.contains(recipeId)) {

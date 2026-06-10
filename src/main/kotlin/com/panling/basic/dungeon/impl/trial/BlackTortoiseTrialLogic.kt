@@ -211,23 +211,11 @@ class BlackTortoiseTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugi
             val center = instance.centerLocation
 
             // 重甲冥龟（小型劫掠兽）
-            val ravager = instance.world.spawnEntity(center.clone().add(0.0, 1.0, 0.0), EntityType.RAVAGER) as Ravager
-            ravager.customName(Component.text("§3重甲冥龟"))
-            ravager.isCustomNameVisible = true
-
-            try {
-                ravager.getAttribute(Attribute.SCALE)?.baseValue = 0.5
-            } catch (e: Exception) {}
-
+            val ravager = plugin.mobManager.spawnMob(center.clone().add(0.0, 1.0, 0.0), "dungeon_black_tortoise_boss") as? Ravager ?: return
             val bossHp = 550.0 * scale
             ravager.getAttribute(Attribute.MAX_HEALTH)?.baseValue = bossHp
             ravager.health = bossHp
-            ravager.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.04
             ravager.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 12.0 * scale
-            ravager.getAttribute(Attribute.KNOCKBACK_RESISTANCE)?.baseValue = 1.0
-            ravager.lootTable = null
-
-            // 防块破坏
             ravager.isAware = true
 
             spawnMob(ravager)
@@ -241,15 +229,10 @@ class BlackTortoiseTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugi
                 }
                 val loc = center.clone().add(offset).add(0.0, 1.0, 0.0)
 
-                val silverfish = instance.world.spawnEntity(loc, EntityType.SILVERFISH) as Silverfish
-                silverfish.customName(Component.text("§b幽水灵蛇"))
-                silverfish.isCustomNameVisible = true
-
+                val silverfish = plugin.mobManager.spawnMob(loc, "dungeon_black_tortoise_add") as? Silverfish ?: continue
                 silverfish.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 100.0 * scale
                 silverfish.health = 100.0 * scale
-                silverfish.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.35
                 silverfish.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 5.0 * scale
-                silverfish.lootTable = null
 
                 spawnMob(silverfish)
             }

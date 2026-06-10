@@ -71,7 +71,9 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
 
             // 应用规则
             world.setGameRule(GameRule.KEEP_INVENTORY, true)
+            world.setGameRule(GameRule.DO_IMMEDIATE_RESPAWN, true)
             world.setGameRule(GameRule.DO_MOB_SPAWNING, false)
+            world.setGameRule(GameRule.DO_MOB_LOOT, false)
             world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false)
             world.setGameRule(GameRule.DO_WEATHER_CYCLE, false)
             world.setGameRule(GameRule.MOB_GRIEFING, false)
@@ -180,10 +182,11 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
 
         instance.players.forEach {
             val p = Bukkit.getPlayer(it)
-            // 先清理Map，防止TP时死循环
             playerInstanceMap.remove(it)
-            p?.teleport(exitLocation)
-            p?.sendMessage("§e副本已关闭，你已返回原世界。")
+            if (p != null && !p.isDead) {
+                p.teleport(exitLocation)
+                p.sendMessage("§e副本已关闭，你已返回原世界。")
+            }
         }
     }
 
@@ -199,6 +202,18 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
         instance.leave(player)
 
         // 延时检查实例是否为空
+        Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+            if (instance.players.isEmpty()) removeInstance(instanceId)
+        }, 20L)
+    }
+
+    /** 死亡时退出副本（不传送，让玩家正常复活） */
+    fun handleDungeonDeath(player: Player) {
+        val instanceId = playerInstanceMap[player.uniqueId] ?: return
+        val instance = activeInstances[instanceId] ?: return
+        playerInstanceMap.remove(player.uniqueId)
+        instance.players.remove(player.uniqueId)
+        // 正常路径：副本空了就关闭
         Bukkit.getScheduler().runTaskLater(plugin, Runnable {
             if (instance.players.isEmpty()) removeInstance(instanceId)
         }, 20L)

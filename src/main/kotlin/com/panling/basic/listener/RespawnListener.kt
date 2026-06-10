@@ -43,11 +43,11 @@ class RespawnListener(private val plugin: PanlingBasic) : Listener {
         saveRespawnTarget(event.player)
     }
 
-    // ── 重生时：1 tick 后强制传送到安全位 ──
+    // ── 重生时：1 tick 后强制传送到主世界安全位 ──
     @EventHandler(priority = EventPriority.MONITOR)
     fun onRespawn(event: PlayerRespawnEvent) {
         val player = event.player
-        val world = player.world
+        val world = Bukkit.getWorld("world") ?: player.world  // 始终传送到主世界
 
         // 根据状态选目标坐标
         val isInit = isPlayerInitialized(player)

@@ -143,12 +143,15 @@ class DungeonInstance(
     fun handlePlayerDeath(player: Player) {
         if (state == DungeonState.RUNNING) {
             currentPhase?.onPlayerDeath(player)
-            // 全员阵亡 → 副本失败
             val allDead = players.all { uid ->
                 val p = Bukkit.getPlayer(uid)
                 p == null || p.isDead || !p.isOnline
             }
-            if (allDead) failDungeon("§c全员阵亡")
+            if (allDead) {
+                failDungeon("§c全员阵亡")
+            } else {
+                plugin.dungeonManager.handleDungeonDeath(player)
+            }
         }
     }
 
@@ -178,18 +181,15 @@ class DungeonInstance(
     }
 
     /**
-     * 挑战失败
+     * 挑战失败 — 广播消息后立即关闭副本
      */
     fun failDungeon(reason: String) {
         if (state != DungeonState.RUNNING) return
         broadcast(reason)
-        broadcast("§c挑战失败！副本即将关闭...")
         broadcastSound(Sound.ENTITY_VILLAGER_NO)
 
         state = DungeonState.ENDING
-        Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-            stop()
-        }, 100L) // 5秒后传出
+        stop()
     }
 
     /**

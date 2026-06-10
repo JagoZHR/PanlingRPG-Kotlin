@@ -84,9 +84,9 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
     // ==========================================
     inner class Phase1Swords(instance: DungeonInstance) : AbstractDungeonPhase(plugin, instance) {
 
-        private val durationTicks = 600L       // 30 秒
-        private val arenaHalf = 10.0           // 场地半径
-        private val swordDamageBase = 15.0     // 基础伤害
+        private val durationTicks = 600L
+        private val arenaHalf = 10.0
+        private val swordDamageBase = 15.0
 
         private var startTick = 0L
         private var nextSwordTick = 0L
@@ -273,26 +273,12 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
 
             for (offset in offsets) {
                 val loc = center.clone().add(offset).add(0.0, 1.0, 0.0)
-                val golem = instance.world.spawnEntity(loc, EntityType.IRON_GOLEM) as IronGolem
-
-                golem.customName(Component.text("§f玄金傀儡"))
-                golem.isCustomNameVisible = true
-
-                // 缩小体型
-                try {
-                    golem.getAttribute(Attribute.SCALE)?.baseValue = 0.7
-                } catch (e: Exception) {
-                    // 如果版本不支持 SCALE 属性，忽略
-                }
+                val golem = plugin.mobManager.spawnMob(loc, "dungeon_white_tiger_golem") as? IronGolem ?: continue
 
                 val hp = 150.0 * scale
                 golem.getAttribute(Attribute.MAX_HEALTH)?.baseValue = hp
                 golem.health = hp
-                golem.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.08
                 golem.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 8.0 * scale
-                golem.getAttribute(Attribute.KNOCKBACK_RESISTANCE)?.baseValue = 1.0
-
-                golem.lootTable = null
                 golem.isGlowing = false
 
                 golems[golem] = hp
@@ -422,22 +408,12 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
                     1.0,
                     (Random.nextDouble() - 0.5) * 4
                 )
-                val golem = instance.world.spawnEntity(loc, EntityType.IRON_GOLEM) as IronGolem
-
-                golem.customName(Component.text("§f玄金傀儡"))
-                golem.isCustomNameVisible = true
-
-                try {
-                    golem.getAttribute(Attribute.SCALE)?.baseValue = 0.7
-                } catch (e: Exception) {}
+                val golem = plugin.mobManager.spawnMob(loc, "dungeon_white_tiger_golem") as? IronGolem ?: continue
 
                 val hp = 150.0 * scale * 0.5  // 50% HP
                 golem.getAttribute(Attribute.MAX_HEALTH)?.baseValue = hp
                 golem.health = hp
-                golem.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.08
                 golem.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 8.0 * scale
-                golem.getAttribute(Attribute.KNOCKBACK_RESISTANCE)?.baseValue = 1.0
-                golem.lootTable = null
 
                 if (reflectActive) {
                     golem.setMetadata("pl_reflect", FixedMetadataValue(plugin, true))

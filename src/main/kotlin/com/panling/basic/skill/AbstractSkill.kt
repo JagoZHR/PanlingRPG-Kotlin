@@ -92,8 +92,14 @@ abstract class AbstractSkill(
                     return
                 }
                 if (p.location.distanceSquared(startLoc) > 0.01) {
-                    interrupt("§c移动打断施法！")
-                    return
+                    // velocity > 0 = 外力推动（击退、水流）→ 拉回，不打断
+                    // velocity ≈ 0 = 玩家主动 WASD → 打断施法
+                    if (p.velocity.lengthSquared() > 0.01) {
+                        p.teleport(startLoc)
+                    } else {
+                        interrupt("§c移动打断施法！")
+                        return
+                    }
                 }
 
                 if (tick < ticks) {

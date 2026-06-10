@@ -122,7 +122,7 @@ class SpawnerManager(
             val spawnLoc = if (spawner.mode == SpawnMode.FIXED) {
                 spawner.center.clone()
             } else {
-                findRandomLocAround(player.location, spawner.spawnRadius)
+                findRandomLocAround(player.location, spawner.spawnRadius, spawner.minDistance)
             } ?: continue
 
             val selectedMobId = spawner.mobPool.getRandomId() ?: continue
@@ -204,15 +204,15 @@ class SpawnerManager(
 
     // === 4. 辅助方法 (防卡墙修复版) ===
 
-    private fun findRandomLocAround(center: Location, radius: Double): Location? {
+    private fun findRandomLocAround(center: Location, radius: Double, minDist: Double = 3.0): Location? {
         val world = center.world ?: return null
 
-        // 增加尝试次数以保证成功率
+        val effectiveMin = minDist.coerceAtMost(radius)
+
         for (i in 0 until 15) {
             val angle = Math.random() * Math.PI * 2
-            val dist = Math.random() * radius
+            val dist = effectiveMin + Math.random() * (radius - effectiveMin)
 
-            // 基础坐标 (整数)
             val xBlock = (center.x + cos(angle) * dist).toInt()
             val zBlock = (center.z + sin(angle) * dist).toInt()
 
@@ -447,6 +447,7 @@ class SpawnerManager(
                 val mode = if ("FIXED" == modeStr) SpawnMode.FIXED else SpawnMode.RANDOM
 
                 val spawnRadius = sec.getDouble("spawn_radius", 5.0)
+                val minDistance = sec.getDouble("min_distance", 3.0)
 
                 val msg = sec.getString("spawn_message", null)
                 val title = sec.getString("spawn_title", null)
@@ -504,7 +505,7 @@ class SpawnerManager(
                     id, Location(w, x, y, z),
                     triggerSq,
                     despawnSq,
-                    pool, max, interval, mode, spawnRadius, worldName,
+                    pool, max, interval, mode, spawnRadius, minDistance, worldName,
                     msg, title, sound, depletionThreshold,
                     amountPool // [NEW] 传入 amountPool
                 )
@@ -597,27 +598,19 @@ class SpawnerManager(
     private data class SpawnerConfig(
         val id: String,
         val center: Location,
-        val triggerRadiusSq: Double, // 外部传入的是 radius，这里存的是 radius * radius
-        val despawnRangeSq: Double,  // 外部传入的是 radius，这里存的是 radius * radius
+        val triggerRadiusSq: Double,
+        val despawnRangeSq: Double,
         val mobPool: MobPool,
         val maxAmount: Int,
         val interval: Int,
         val mode: SpawnMode,
         val spawnRadius: Double,
+        val minDistance: Double,
         val worldName: String,
         val spawnMessage: String?,
         val spawnTitle: String?,
         val spawnSound: String?,
         val depletionThreshold: Int,
-        val amountPool: AmountPool // [NEW] 增加这个字段
-    ) {
-        // 次级构造函数不是必须的，因为我们在 loadSingleFile 里已经算好了 square，
-        // 直接传给主构造函数即可。上面的 data class 定义直接对应计算后的值。
-
-        // 为了确保逻辑与 Java 一致，我们在构造时进行平方计算，或者在外部算好传入。
-        // 在 Kotlin 中，通常建议在 data class 内部用 init 块或者外部计算。
-        // 上面的 loadSingleFile 里：
-        // triggerRadiusSq = triggerRadius * triggerRadius
-        // 这样代码更干净。
-    }
+        val amountPool: AmountPool
+    )
 }

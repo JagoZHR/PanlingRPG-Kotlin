@@ -197,6 +197,30 @@ class MenuManager(
         glass.itemMeta = gMeta
         for (i in 0 until 27) fullInv.setItem(i, glass)
 
+        // === Slot 0: 更新公告 ===
+        val changelogBtn = ItemStack(Material.BLAZE_POWDER)
+        val chMeta = changelogBtn.itemMeta
+        chMeta.displayName(Component.text("§6§l[ 更新公告 ]").decoration(TextDecoration.ITALIC, false))
+        val chLore = ArrayList<Component>()
+        chLore.add(Component.text("§7查看服务器更新记录").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
+        chMeta.lore(chLore)
+        chMeta.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "OPEN_CHANGELOG")
+        changelogBtn.itemMeta = chMeta
+        fullInv.setItem(0, changelogBtn)
+
+        // === Slot 8: 传送 ===
+        val teleportBtn = ItemStack(Material.WARPED_FUNGUS_ON_A_STICK)
+        val tpMeta = teleportBtn.itemMeta
+        tpMeta.displayName(Component.text("§b§l[ 传送 ]").decoration(TextDecoration.ITALIC, false))
+        val tpLore = ArrayList<Component>()
+        tpLore.add(Component.text("§7消耗灵力传送到已发现的传送点").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
+        val unlockedCount = dataManager.getUnlockedTeleports(player).size
+        tpLore.add(Component.text("§7已发现: §e$unlockedCount §7个").decoration(TextDecoration.ITALIC, false))
+        tpMeta.lore(tpLore)
+        tpMeta.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "OPEN_TELEPORT")
+        teleportBtn.itemMeta = tpMeta
+        fullInv.setItem(8, teleportBtn)
+
         // 2. 玩家信息头颅 (显示总属性)
         val activeSlot = dataManager.getActiveSlot(player)
         val pc = dataManager.getPlayerClass(player)
@@ -558,6 +582,18 @@ class MenuManager(
             if ("OPEN_PARTY" == action) {
                 // 直接调用我们上一步写好的 PartyUI
                 plugin.partyUI.openGUI(player)
+                return
+            }
+
+            // 更新公告
+            if ("OPEN_CHANGELOG" == action) {
+                plugin.changelogUI.open(player)
+                return
+            }
+
+            // 传送
+            if ("OPEN_TELEPORT" == action) {
+                plugin.teleportUI.open(player)
                 return
             }
 

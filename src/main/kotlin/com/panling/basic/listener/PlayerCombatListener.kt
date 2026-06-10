@@ -267,14 +267,8 @@ class PlayerCombatListener(
             return
         }
 
-        // [打断施法]
+        // [打断施法] — 已移除：受击不再打断施法，玩家可在血量与进攻间做取舍
         val victim = event.entity as? LivingEntity ?: return
-        if (victim is Player && victim.hasMetadata(META_CASTING_SKILL)) {
-            // 这里为了获取 Plugin 实例比较麻烦，直接用 plugin 变量
-            victim.removeMetadata(META_CASTING_SKILL, plugin)
-            victim.sendActionBar(Component.text("§c受击！施法被打断！").color(NamedTextColor.RED))
-            victim.playSound(victim.location, Sound.BLOCK_GLASS_BREAK, 1f, 0.5f)
-        }
 
         val damagerEntity = event.damager
         var attackerPlayer: Player? = null

@@ -6,9 +6,11 @@ import com.panling.basic.shop.Shop
 import com.panling.basic.shop.ShopProduct
 import com.panling.basic.ui.ShopUI
 import net.kyori.adventure.text.Component
+import org.bukkit.Material
 import org.bukkit.Sound
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
+import org.bukkit.inventory.ItemStack
 import java.io.File
 import java.util.HashMap
 
@@ -67,8 +69,9 @@ class ShopManager(private val plugin: PanlingBasic) : Reloadable {
                         val buy = (map["buy"] as? Number)?.toDouble() ?: -1.0
                         val sell = (map["sell"] as? Number)?.toDouble() ?: -1.0
                         val slot = (map["slot"] as Number).toInt()
+                        val amount = (map["amount"] as? Number)?.toInt() ?: 1
 
-                        val product = ShopProduct(itemId, buy, sell, slot)
+                        val product = ShopProduct(itemId, buy, sell, slot, amount)
                         buildDisplayItem(product)
                         shop.addProduct(product)
                     } catch (e: Exception) {
@@ -80,9 +83,14 @@ class ShopManager(private val plugin: PanlingBasic) : Reloadable {
         }
     }
 
+    /** 创建商品物品：先查插件物品，找不到则尝试原版 Material */
+    private fun createShopItem(itemId: String, player: Player?): ItemStack? {
+        plugin.itemManager?.createItem(itemId, player)?.let { return it }
+        return try { ItemStack(Material.valueOf(itemId.uppercase())) } catch (_: Exception) { null }
+    }
+
     private fun buildDisplayItem(product: ShopProduct) {
-        // 从 ItemManager 获取原始物品
-        val original = plugin.itemManager?.createItem(product.itemId, null) ?: return
+        val original = createShopItem(product.itemId, null) ?: return
 
         val display = original.clone()
         val meta = display.itemMeta
@@ -91,8 +99,11 @@ class ShopManager(private val plugin: PanlingBasic) : Reloadable {
 
         lore.add(Component.empty())
         lore.add(Component.text("§8§m------------------"))
+        if (product.amount > 1) {
+            lore.add(Component.text("§7数量: §f${product.amount} 个"))
+        }
         if (product.buyPrice >= 0) {
-            lore.add(Component.text("§a[左键] 购买: §e${product.buyPrice} 金币"))
+            lore.add(Component.text("§a[左键] 购买: §e${product.buyPrice} 铜钱"))
         } else {
             lore.add(Component.text("§c[不可购买]"))
         }
@@ -125,7 +136,7 @@ class ShopManager(private val plugin: PanlingBasic) : Reloadable {
         // 1. 检查钱
         val eco = plugin.economyManager
         if (!eco.hasMoney(player, product.buyPrice)) {
-            player.sendMessage("§c余额不足！你需要 ${product.buyPrice} 金币。")
+            player.sendMessage("§c余额不足！你需要 ${product.buyPrice} 铜钱。")
             player.playSound(player.location, Sound.ENTITY_VILLAGER_NO, 1f, 1f)
             return
         }
@@ -139,17 +150,12 @@ class ShopManager(private val plugin: PanlingBasic) : Reloadable {
         // 3. 执行交易
         eco.takeMoney(player, product.buyPrice)
 
-        val item = plugin.itemManager?.createItem(product.itemId, player)
+        val item = createShopItem(product.itemId, player)
         if (item != null) {
+            item.amount = product.amount
             player.inventory.addItem(item)
 
-            // 获取显示名称 (为了保持与 Java 逻辑一致的字符串拼接)
-            val displayName = if (item.hasItemMeta() && item.itemMeta.hasDisplayName())
-                item.itemMeta.displayName
-            else
-                product.itemId
-
-            player.sendMessage("§a购买成功: $displayName")
+            player.sendMessage("§a购买成功！")
         }
         player.playSound(player.location, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
     }

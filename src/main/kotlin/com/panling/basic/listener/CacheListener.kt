@@ -3,6 +3,7 @@ package com.panling.basic.listener
 import com.panling.basic.manager.PlayerDataManager
 import com.panling.basic.skill.impl.archer.SniperT5Skill
 import com.panling.basic.skill.strategy.metal.MetalAttackT5FurnaceStrategy
+import org.bukkit.GameMode
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
@@ -18,6 +19,12 @@ class CacheListener(private val dataManager: PlayerDataManager) : Listener {
     fun onJoin(event: PlayerJoinEvent) {
         // 加入时清空一次，确保数据从 NBT 重新加载
         dataManager.onPlayerQuit(event.player)
+    }
+
+    // 强制冒险模式（MONITOR 优先级确保最后执行，不被其他插件覆盖）
+    @EventHandler(priority = EventPriority.MONITOR)
+    fun onJoinForceAdventure(event: PlayerJoinEvent) {
+        event.player.gameMode = GameMode.ADVENTURE
     }
 
     // 2. 玩家退出：清理所有内存缓存

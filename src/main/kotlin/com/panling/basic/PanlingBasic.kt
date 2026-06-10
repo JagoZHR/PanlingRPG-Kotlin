@@ -12,10 +12,12 @@ import com.panling.basic.quest.feature.QuestNpcFeature
 import com.panling.basic.shop.feature.BarterNpcFeature
 import com.panling.basic.shop.feature.ShopNpcFeature
 import com.panling.basic.ui.BankUI
+import com.panling.basic.ui.ChangelogUI
 import com.panling.basic.ui.PartyUI
 import com.panling.basic.ui.QuestUI
 import com.panling.basic.ui.SetUI
 import com.panling.basic.ui.ShopUI
+import com.panling.basic.ui.TeleportUI
 import org.bukkit.plugin.java.JavaPlugin
 
 class PanlingBasic : JavaPlugin() {
@@ -59,6 +61,10 @@ class PanlingBasic : JavaPlugin() {
     lateinit var dungeonManager: DungeonManager
     lateinit var worldScriptManager: WorldScriptManager
     lateinit var itemKitManager: ItemKitManager
+    lateinit var changelogManager: ChangelogManager
+    lateinit var changelogUI: ChangelogUI
+    lateinit var teleportManager: TeleportManager
+    lateinit var teleportUI: TeleportUI
 
     // 内部使用的管理器，不需要公开 getter 也可以直接 private
     lateinit var commandManager: CommandManager
@@ -125,6 +131,14 @@ class PanlingBasic : JavaPlugin() {
 
         // 礼包模块
         itemKitManager = ItemKitManager(this)
+
+        // 更新公告模块
+        changelogManager = ChangelogManager(this)
+        changelogUI = ChangelogUI(this)
+
+        // 传送模块
+        teleportManager = TeleportManager(this)
+        teleportUI = TeleportUI(this)
 
         // 5. 业务逻辑层
         invListener = InventoryListener(this, playerDataManager, itemManager, statCalculator)

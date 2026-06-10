@@ -74,7 +74,7 @@ class EnterWorldHandler(private val plugin: PanlingBasic) {
         // ── 8. 欢迎消息 ──
         player.playSound(player.location, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f)
         player.sendMessage(Component.text("§e§l========================================"))
-        player.sendMessage(Component.text("§f  欢迎来到万象世界！").color(NamedTextColor.WHITE))
+        player.sendMessage(Component.text("§f  欢迎来到盘古大陆！").color(NamedTextColor.WHITE))
         player.sendMessage(Component.text("§f  种族: ${savedRace.coloredName}  §7|  §f职业: ${savedClass.displayName}")
             .color(NamedTextColor.WHITE))
         player.sendMessage(Component.text("§e§l========================================"))

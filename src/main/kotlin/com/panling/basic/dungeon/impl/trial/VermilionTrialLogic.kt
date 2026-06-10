@@ -92,23 +92,11 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
 
             cornerOffsets.forEach { offset ->
                 val loc = center.clone().add(offset)
-                val skelly = instance.world.spawnEntity(loc, EntityType.SKELETON) as Skeleton
-
-                skelly.customName(Component.text("§c余烬射手"))
-                skelly.isCustomNameVisible = true
+                val skelly = plugin.mobManager.spawnMob(loc, "dungeon_vermillion_ember_archer") as? Skeleton ?: return@forEach
 
                 val hp = 32.0 * scale
                 skelly.getAttribute(Attribute.MAX_HEALTH)?.baseValue = hp
                 skelly.health = hp
-                skelly.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.25
-
-                // 防燃烧 + 无掉落
-                skelly.equipment.helmet = ItemStack(Material.LEATHER_HELMET)
-                skelly.equipment.helmetDropChance = 0f
-                skelly.equipment.setItemInMainHand(ItemStack(Material.BOW))
-                skelly.equipment.itemInMainHandDropChance = 0f
-                skelly.lootTable = null
-
                 spawnMob(skelly)
             }
 
@@ -158,14 +146,11 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
         private fun spawnBossBlaze(hp: Double) {
             val center = instance.centerLocation.clone().add(0.0, 1.0, 0.0)
 
-            val blaze = instance.world.spawnEntity(center, EntityType.BLAZE) as Blaze
-            blaze.customName(Component.text("§c§l朱雀之影"))
-            blaze.isCustomNameVisible = true
+            val blaze = plugin.mobManager.spawnMob(center, "dungeon_vermillion_boss") as? Blaze ?: return
             blaze.getAttribute(Attribute.MAX_HEALTH)?.baseValue = hp
             blaze.health = hp
             blaze.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 15.0 * getDifficultyScale(instance)
             blaze.isGlowing = true
-            blaze.lootTable = null
 
             bossBlaze = blaze
             instance.broadcast("§c朱雀之影 §7燃烧着降临了！(HP: ${hp.toInt()})")
@@ -175,13 +160,10 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
         private fun spawnSmallBlaze(hp: Double) {
             val center = instance.centerLocation.clone().add(0.0, 1.0, 0.0)
 
-            val blaze = instance.world.spawnEntity(center, EntityType.BLAZE) as Blaze
-            blaze.customName(Component.text("§6黯淡的火种"))
-            blaze.isCustomNameVisible = true
+            val blaze = plugin.mobManager.spawnMob(center, "dungeon_vermillion_dim_ember") as? Blaze ?: return
             blaze.getAttribute(Attribute.MAX_HEALTH)?.baseValue = hp
             blaze.health = hp
             blaze.isGlowing = false
-            blaze.lootTable = null
 
             smallBlaze = blaze
             smallSpawnTick = instance.tickCount
@@ -204,15 +186,10 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
                 val offsetZ = (Random.nextDouble() - 0.5) * 8
                 val spawnLoc = target.clone().add(offsetX, 0.0, offsetZ)
 
-                val zombie = instance.world.spawnEntity(spawnLoc, EntityType.ZOMBIE) as Zombie
-                zombie.customName(Component.text("§c大漠劫匪"))
+                val zombie = plugin.mobManager.spawnMob(spawnLoc, "dungeon_vermillion_bandit") as? Zombie ?: return@repeat
                 zombie.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 38.0 * scale
                 zombie.health = 38.0 * scale
                 zombie.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 4.0 * scale
-                zombie.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.23
-                zombie.equipment.helmet = ItemStack(Material.LEATHER_HELMET)
-                zombie.equipment.helmetDropChance = 0f
-                zombie.lootTable = null
             }
         }
 

@@ -191,32 +191,17 @@ class WoodTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
         private fun spawnPusherMob() {
             val randomPlayer = instance.players.mapNotNull { Bukkit.getPlayer(it) }.randomOrNull() ?: return
             val spawnLoc = randomPlayer.location.clone().add(
-                (Random.nextDouble() - 0.5) * 10,
-                0.0,
-                (Random.nextDouble() - 0.5) * 10
+                (Random.nextDouble() - 0.5) * 10, 0.0, (Random.nextDouble() - 0.5) * 10
             )
             spawnLoc.y = instance.centerLocation.y + 1
 
-            val mob = instance.world.spawnEntity(spawnLoc, EntityType.ZOMBIE) as Zombie
-            mob.customName(Component.text("§2腐化干尸"))
-            mob.isCustomNameVisible = true
-            mob.setBaby(false)
+            val mob = plugin.mobManager.spawnMob(spawnLoc, "dungeon_trial_wood_pusher") as? Zombie ?: return
 
-            mob.equipment.helmet = ItemStack(Material.STONE_BUTTON)
-            mob.equipment.helmetDropChance = 0f
-
-            mob.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 2.0
-            mob.health = 2.0
-            mob.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.35
-            mob.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 1.0
-
-            mob.lootTable = org.bukkit.loot.LootTables.VEX.lootTable
-
+            // 特殊行为：击退木棍
             val stick = ItemStack(Material.STICK)
             val meta = stick.itemMeta
             meta.addEnchant(Enchantment.KNOCKBACK, 5, true)
             stick.itemMeta = meta
-
             mob.equipment.setItemInMainHand(stick)
             mob.equipment.itemInMainHandDropChance = 0f
 
