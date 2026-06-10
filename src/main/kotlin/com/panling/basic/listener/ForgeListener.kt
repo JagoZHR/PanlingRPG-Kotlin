@@ -95,7 +95,7 @@ class ForgeListener(private val manager: ForgeManager) : Listener {
         // 5. 配方列表 → 详情
         if (type.startsWith("LIST:")) {
             val rid = pdc.get(recipeKey, PersistentDataType.STRING) ?: return
-            manager.getRecipe(rid)?.let { ui.openDetailMenu(player, it) }
+            manager.getRecipe(rid)?.let { ui.openDetailMenu(player, it, type) }
             return
         }
 

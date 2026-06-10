@@ -22,7 +22,9 @@ class ShopUI(
     }
 
     fun openShop(player: Player, shop: Shop) {
-        val inv = Bukkit.createInventory(ShopHolder(shop), shop.size, Component.text(shop.title))
+        val balance = shopManager.getBalance(player)
+        val title = "${shop.title}  §7| 余额: §e${String.format("%.0f", balance)}"
+        val inv = Bukkit.createInventory(ShopHolder(shop), shop.size, Component.text(title))
 
         // 渲染商品
         for (product in shop.products.values) {
@@ -54,6 +56,10 @@ class ShopUI(
             // 左键购买
             if (event.isLeftClick) {
                 shopManager.handleBuy(player, product)
+                // 购买后刷新商店（更新余额显示）
+                if (player.openInventory.topInventory.holder is ShopHolder) {
+                    openShop(player, holder.shop)
+                }
             }
             // 右键卖出逻辑 (预留)
             // else if (event.isRightClick) { ... }

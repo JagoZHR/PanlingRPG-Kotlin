@@ -25,6 +25,20 @@ class MobListener(private val mobManager: MobManager) : Listener {
     // 获取插件实例 (用于 hideEntity)
     private val plugin = PanlingBasic.instance
 
+    init {
+        // 每 5 秒清除扎在地上的箭矢、光灵箭、三叉戟
+        Bukkit.getScheduler().runTaskTimer(plugin, Runnable {
+            for (world in Bukkit.getWorlds()) {
+                for (entity in world.entities) {
+                    val stuck = (entity is AbstractArrow || entity is org.bukkit.entity.Trident)
+                    if (stuck && entity.velocity.lengthSquared() < 0.001 && entity.ticksLived > 60) {
+                        entity.remove()
+                    }
+                }
+            }
+        }, 100L, 100L)
+    }
+
     // ==================================================
     // 1. [NEW] 私有怪机制完善
     // ==================================================

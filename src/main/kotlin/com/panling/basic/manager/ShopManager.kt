@@ -127,6 +127,8 @@ class ShopManager(private val plugin: PanlingBasic) : Reloadable {
         }
     }
 
+    fun getBalance(player: Player): Double = plugin.playerDataManager.getMoney(player)
+
     fun handleBuy(player: Player, product: ShopProduct) {
         if (product.buyPrice < 0) {
             player.sendMessage("§c此商品非卖品。")

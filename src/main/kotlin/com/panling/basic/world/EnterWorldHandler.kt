@@ -49,6 +49,13 @@ class EnterWorldHandler(private val plugin: PanlingBasic) {
         dataManager.setPlayerClass(player, savedClass)
         dataManager.setActiveSlot(player, 0)
 
+        // ── 3.5 加入玩家队伍（关闭友伤） ──
+        val sb = Bukkit.getScoreboardManager().mainScoreboard
+        var team = sb.getTeam("pl_players")
+        if (team == null) team = sb.registerNewTeam("pl_players")
+        team.setAllowFriendlyFire(false)
+        team.addEntry(player.name)
+
         // ── 4. 设置重生点 ──
         val world = Bukkit.getWorld("world") ?: player.world
         player.setRespawnLocation(Location(world, 179.5, 43.0, 63.5), false)

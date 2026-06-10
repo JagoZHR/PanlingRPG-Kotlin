@@ -147,7 +147,7 @@ class ForgeUI(private val manager: ForgeManager) {
 
         // 过滤
         val filtered = allRecipes.filter { recipe ->
-            if (recipe.tier == 0) return@filter false
+            if (recipe.tier == 0 && recipe.sub == null) return@filter false  // 只过滤非转换的无阶配方
             if (recipe.requiresUnlock && !dataManager.hasUnlockedRecipe(player, recipe.id)) return@filter false
             // 职业过滤
             val reqClassStr = manager.itemManager.getTemplate(recipe.targetItemId)?.reqClass
@@ -221,7 +221,7 @@ class ForgeUI(private val manager: ForgeManager) {
     }
 
     // === Level 4: 详情页 ===
-    fun openDetailMenu(player: Player, recipe: ForgeRecipe) {
+    fun openDetailMenu(player: Player, recipe: ForgeRecipe, parentState: String) {
         val inv = Bukkit.createInventory(ForgeHolder("DETAIL:${recipe.id}"), 54, Component.text("§8❖ 锻造详情 ❖"))
         val itemManager = manager.itemManager
 
@@ -270,7 +270,7 @@ class ForgeUI(private val manager: ForgeManager) {
         btnMeta.lore(lore)
         btn.itemMeta = btnMeta
         inv.setItem(49, btn)
-        addBackButton(inv, 45, "LIST:${recipe.category.name}::0")
+        addBackButton(inv, 45, parentState)
         fillBorder(inv)
         player.openInventory(inv)
     }

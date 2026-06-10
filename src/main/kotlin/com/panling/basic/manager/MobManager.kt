@@ -21,6 +21,7 @@ import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Mob
 import org.bukkit.entity.Player
 import org.bukkit.entity.Rabbit
+import org.bukkit.entity.Zombie
 import org.bukkit.inventory.EquipmentSlot
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
@@ -252,6 +253,12 @@ class MobManager(
         // 假设 template.name 已经包含颜色代码或者用 &
         entity.customName = template.name.replace("&", "§")
         entity.isCustomNameVisible = true
+
+        // 强制成年 + 防鸡骑士
+        if (entity is Zombie) {
+            entity.setBaby(false)
+            entity.vehicle?.remove()
+        }
 
         // 应用体型缩放 (Paper 1.21+ 使用 Attribute.SCALE)
         if (template.scale != 1.0) {

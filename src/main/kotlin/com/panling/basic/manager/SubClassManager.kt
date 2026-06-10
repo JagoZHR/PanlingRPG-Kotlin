@@ -337,7 +337,7 @@ class SubClassManager(
                 // 刚切换：0.5 (减少50%)
                 // 10秒后：0.7 (减少30%)
                 // 线性过渡
-                val factor = lerp(holdSeconds, 0.5, 0.7)
+                val factor = lerp(holdSeconds, 0.6, 0.8)
                 return originalSpeed * factor
             }
         }

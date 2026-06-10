@@ -1,8 +1,10 @@
 package com.panling.basic.listener
 
+import com.panling.basic.api.BasicKeys
 import com.panling.basic.manager.PlayerDataManager
 import com.panling.basic.skill.impl.archer.SniperT5Skill
 import com.panling.basic.skill.strategy.metal.MetalAttackT5FurnaceStrategy
+import org.bukkit.Bukkit
 import org.bukkit.GameMode
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
@@ -11,6 +13,7 @@ import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityPickupItemEvent
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.player.*
+import org.bukkit.persistence.PersistentDataType
 
 class CacheListener(private val dataManager: PlayerDataManager) : Listener {
 
@@ -25,6 +28,21 @@ class CacheListener(private val dataManager: PlayerDataManager) : Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     fun onJoinForceAdventure(event: PlayerJoinEvent) {
         event.player.gameMode = GameMode.ADVENTURE
+    }
+
+    // 已选择种族职业的玩家加入无友伤队伍
+    @EventHandler(priority = EventPriority.MONITOR)
+    fun onJoinAddTeam(event: PlayerJoinEvent) {
+        val p = event.player
+        val race = p.persistentDataContainer.get(BasicKeys.DATA_RACE, PersistentDataType.STRING) ?: return
+        val cls = p.persistentDataContainer.get(BasicKeys.DATA_CLASS, PersistentDataType.STRING) ?: return
+        if (race == "NONE" || cls == "NONE") return
+
+        val sb = Bukkit.getScoreboardManager().mainScoreboard
+        var team = sb.getTeam("pl_players")
+        if (team == null) team = sb.registerNewTeam("pl_players")
+        team.setAllowFriendlyFire(false)
+        team.addEntry(p.name)
     }
 
     // 2. 玩家退出：清理所有内存缓存
