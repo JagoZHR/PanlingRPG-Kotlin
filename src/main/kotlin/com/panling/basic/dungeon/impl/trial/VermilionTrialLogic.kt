@@ -18,6 +18,7 @@ import org.bukkit.entity.EntityType
 import org.bukkit.entity.Player
 import org.bukkit.entity.Skeleton
 import org.bukkit.entity.Zombie
+import org.bukkit.entity.LivingEntity
 import org.bukkit.inventory.ItemStack
 import org.bukkit.util.Vector
 import kotlin.random.Random
@@ -30,9 +31,8 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
     // ==========================================
     // 动态难度：1人=1.0x, 2人=1.5x, 3人=2.0x
     // ==========================================
-    private fun getDifficultyScale(instance: DungeonInstance): Double {
-        return 1.0 + (instance.players.size - 1) * 0.5
-    }
+    private fun getHpScale(instance: DungeonInstance): Double = 1.0 + (instance.players.size - 1) * 0.5
+    private fun getAtkScale(instance: DungeonInstance): Double = 1.0 + (instance.players.size - 1) * 0.1
 
     // ==========================================
     // 奖励：自动发奖 + 解锁 T3 配方
@@ -87,16 +87,14 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
         )
 
         override fun start() {
-            val scale = getDifficultyScale(instance)
+            val hpScale = getHpScale(instance)
+            val atkScale = getAtkScale(instance)
             val center = instance.centerLocation
 
             cornerOffsets.forEach { offset ->
                 val loc = center.clone().add(offset)
                 val skelly = plugin.mobManager.spawnMob(loc, "dungeon_vermillion_ember_archer") as? Skeleton ?: return@forEach
-
-                val hp = 32.0 * scale
-                skelly.getAttribute(Attribute.MAX_HEALTH)?.baseValue = hp
-                skelly.health = hp
+                scaleMob(skelly, hpScale, atkScale)
                 spawnMob(skelly)
             }
 
@@ -113,6 +111,16 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
                 instance.nextPhase(Phase2Boss(instance))
             })
         }
+
+        private fun scaleMob(entity: LivingEntity, hpScale: Double, atkScale: Double) {
+            entity.getAttribute(Attribute.MAX_HEALTH)?.let { attr ->
+                attr.baseValue = attr.baseValue * hpScale
+                entity.health = attr.baseValue
+            }
+            entity.getAttribute(Attribute.ATTACK_DAMAGE)?.let { attr ->
+                attr.baseValue = attr.baseValue * atkScale
+            }
+        }
     }
 
     // ==========================================
@@ -125,17 +133,20 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
         private var originalBossHp: Double = 0.0
         private var smallSpawnTick: Long = 0L
         private var isFinished = false
+        private var hpScale: Double = 1.0
+        private var atkScale: Double = 1.0
 
         // 副怪刷新
         private var nextZombieSpawnTick: Long = 0L
         private val zombieSpawnInterval = 80L // 每 4 秒
 
         override fun start() {
-            val scale = getDifficultyScale(instance)
+            hpScale = getHpScale(instance)
+            atkScale = getAtkScale(instance)
             val count = instance.players.size
 
-            instance.broadcast("§c§l朱雀之影 §r§c降临！当前挑战人数: ${count}人 (难度: ${scale}x)")
-            originalBossHp = 250.0 * scale
+            instance.broadcast("§c§l朱雀之影 §r§c降临！当前挑战人数: ${count}人")
+            originalBossHp = 250.0 * hpScale
             spawnBossBlaze(originalBossHp)
 
             nextZombieSpawnTick = instance.tickCount + zombieSpawnInterval
@@ -145,13 +156,12 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
 
         private fun spawnBossBlaze(hp: Double) {
             val center = instance.centerLocation.clone().add(0.0, 1.0, 0.0)
-
             val blaze = plugin.mobManager.spawnMob(center, "dungeon_vermillion_boss") as? Blaze ?: return
+            // HP 动态覆盖（复活机制），攻击力用 YAML × atkScale
             blaze.getAttribute(Attribute.MAX_HEALTH)?.baseValue = hp
             blaze.health = hp
-            blaze.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 15.0 * getDifficultyScale(instance)
+            scaleMob(blaze, 1.0, atkScale) // hpScale=1.0 因为血量已手动设置
             blaze.isGlowing = true
-
             bossBlaze = blaze
             instance.broadcast("§c朱雀之影 §7燃烧着降临了！(HP: ${hp.toInt()})")
             instance.broadcastSound(Sound.ENTITY_BLAZE_SHOOT)
@@ -179,7 +189,6 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
 
             val target = bossBlaze?.location ?: smallBlaze?.location ?: return
             val count = (1..2).random()
-            val scale = getDifficultyScale(instance)
 
             repeat(count) {
                 val offsetX = (Random.nextDouble() - 0.5) * 8
@@ -187,9 +196,7 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
                 val spawnLoc = target.clone().add(offsetX, 0.0, offsetZ)
 
                 val zombie = plugin.mobManager.spawnMob(spawnLoc, "dungeon_vermillion_bandit") as? Zombie ?: return@repeat
-                zombie.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 38.0 * scale
-                zombie.health = 38.0 * scale
-                zombie.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 4.0 * scale
+                scaleMob(zombie, hpScale, atkScale)
             }
         }
 
@@ -208,10 +215,11 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
 
             // 检测 Boss 死亡 → 召唤小火种
             if (bossBlaze != null && (bossBlaze!!.isDead || !bossBlaze!!.isValid)) {
+                val bossMaxHp = bossBlaze!!.getAttribute(Attribute.MAX_HEALTH)?.baseValue ?: originalBossHp
                 bossBlaze = null
-                val remainingHp = originalBossHp / 2
-                if (remainingHp >= 1.0) {
-                    spawnSmallBlaze(remainingHp)
+                val halfHp = bossMaxHp / 2.0
+                if (halfHp >= 1.0) {
+                    spawnSmallBlaze(halfHp)
                 }
             }
 
@@ -277,6 +285,16 @@ class VermilionTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
             smallBlaze?.remove()
             bossBlaze = null
             smallBlaze = null
+        }
+
+        private fun scaleMob(entity: LivingEntity, hpScale: Double, atkScale: Double) {
+            entity.getAttribute(Attribute.MAX_HEALTH)?.let { attr ->
+                attr.baseValue = attr.baseValue * hpScale
+                entity.health = attr.baseValue
+            }
+            entity.getAttribute(Attribute.ATTACK_DAMAGE)?.let { attr ->
+                attr.baseValue = attr.baseValue * atkScale
+            }
         }
     }
 }

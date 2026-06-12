@@ -143,14 +143,6 @@ class WoodTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) {
         private fun renderBeamEffects() {
             val world = beamLoc.world ?: return
 
-            for (y in 0..10 step 1) {
-                world.spawnParticle(
-                    Particle.HAPPY_VILLAGER,
-                    beamLoc.clone().add(0.0, y.toDouble(), 0.0),
-                    2, 0.2, 0.5, 0.2, 0.0
-                )
-            }
-
             for (i in 0 until 16) {
                 val angle = (i.toDouble() / 16) * 2 * Math.PI
                 val px = beamLoc.x + beamRadius * kotlin.math.cos(angle)

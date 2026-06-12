@@ -6,6 +6,7 @@ import com.panling.basic.api.PlayerClass
 import com.panling.basic.api.SkillContext
 import com.panling.basic.api.SkillTrigger
 import com.panling.basic.manager.*
+import com.panling.basic.mob.skill.impl.DamageFeedbackSkill
 import com.panling.basic.skill.AbstractSkill
 import com.panling.basic.skill.strategy.ArcherSkillStrategy
 import com.panling.basic.skill.strategy.metal.MetalAttackT5FurnaceStrategy
@@ -367,6 +368,12 @@ class PlayerCombatListener(
 
         // 触发受击者技能 (怪物)
         if (victim !is Player) {
+            // [NEW] 存储伤害值供技能(如DamageFeedbackSkill)读取
+            victim.persistentDataContainer.set(
+                DamageFeedbackSkill.LAST_DAMAGE_KEY,
+                PersistentDataType.DOUBLE,
+                finalDamage
+            )
             mobManager.triggerSkills(victim, SkillTrigger.DAMAGED, effectiveAttacker)
         }
 

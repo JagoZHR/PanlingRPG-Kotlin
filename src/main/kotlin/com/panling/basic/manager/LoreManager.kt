@@ -439,6 +439,7 @@ object LoreManager {
             }
         }
 
+        lore.add(Component.text("====================").color(NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false))
         lore.add(statusLine)
         meta.lore(lore)
         item.itemMeta = meta

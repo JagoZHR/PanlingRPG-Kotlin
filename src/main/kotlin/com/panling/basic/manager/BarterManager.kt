@@ -13,8 +13,9 @@ import java.util.HashMap
 
 class BarterManager(private val plugin: PanlingBasic) : Reloadable {
 
-    // 存储 交易方案ID -> 虚拟商人实例
-    private val merchants = HashMap<String, Merchant>()
+    // 存储 交易方案ID -> (标题 + 配方列表)
+    private data class BarterData(val title: String, val recipes: List<MerchantRecipe>)
+    private val barters = HashMap<String, BarterData>()
 
     init {
         plugin.reloadManager?.register(this)
@@ -27,7 +28,7 @@ class BarterManager(private val plugin: PanlingBasic) : Reloadable {
     }
 
     private fun loadBarters() {
-        merchants.clear()
+        barters.clear()
         val folder = File(plugin.dataFolder, "barter")
         if (!folder.exists()) {
             folder.mkdirs()
@@ -38,30 +39,25 @@ class BarterManager(private val plugin: PanlingBasic) : Reloadable {
             .filter { it.isFile && it.name.endsWith(".yml") }
             .forEach { file ->
                 val config = YamlConfiguration.loadConfiguration(file)
-                // 每个文件作为一个独立的商人 (比如 novice_merchant.yml -> ID 就是 novice_merchant)
                 val barterId = file.nameWithoutExtension
                 val merchantTitle = config.getString("title", "§6神秘商人")!!
 
-                val merchant = Bukkit.createMerchant(merchantTitle)
                 val recipesList = ArrayList<MerchantRecipe>()
 
                 val recipesSection = config.getConfigurationSection("recipes") ?: return@forEach
                 for (key in recipesSection.getKeys(false)) {
                     val recipeSec = recipesSection.getConfigurationSection(key) ?: continue
 
-                    // 1. 解析产物 (Result)
                     val resultId = recipeSec.getString("result.id") ?: continue
                     val resultAmt = recipeSec.getInt("result.amount", 1)
                     val resultItem = plugin.itemManager.createItem(resultId, null) ?: continue
                     resultItem.amount = resultAmt
 
-                    // 创建配方 (最大交易次数设为 9999)
                     val recipe = MerchantRecipe(resultItem, 9999)
 
-                    // 2. 解析材料 (Ingredients, 原版最多支持2种材料)
                     val ingSec = recipeSec.getConfigurationSection("ingredients") ?: continue
                     for (ingId in ingSec.getKeys(false)) {
-                        if (recipe.ingredients.size >= 2) break // 原版交易最多只支持2个格子
+                        if (recipe.ingredients.size >= 2) break
 
                         val ingAmt = ingSec.getInt(ingId)
                         val ingItem = plugin.itemManager.createItem(ingId, null) ?: continue
@@ -74,15 +70,17 @@ class BarterManager(private val plugin: PanlingBasic) : Reloadable {
                     }
                 }
 
-                merchant.recipes = recipesList
-                merchants[barterId] = merchant
+                barters[barterId] = BarterData(merchantTitle, recipesList)
             }
-        plugin.logger.info("加载了 ${merchants.size} 个以物换物商人。")
+        plugin.logger.info("加载了 ${barters.size} 个以物换物商人。")
     }
 
     fun openBarter(player: Player, barterId: String) {
-        val merchant = merchants[barterId]
-        if (merchant != null) {
+        val data = barters[barterId]
+        if (data != null) {
+            // 每次打开都创建新 Merchant 实例，避免多玩家互抢
+            val merchant = Bukkit.createMerchant(data.title)
+            merchant.recipes = data.recipes
             player.openMerchant(merchant, true)
         } else {
             player.sendMessage("§c错误：交易方案 $barterId 不存在！")

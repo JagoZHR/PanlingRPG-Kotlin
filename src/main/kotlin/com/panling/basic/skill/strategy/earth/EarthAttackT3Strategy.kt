@@ -52,11 +52,24 @@ class EarthAttackT3Strategy(private val plugin: PanlingBasic) : MageSkillStrateg
 
         object : BukkitRunnable() {
             override fun run() {
-                // 如果 Listener 拦截了命中玩家，rock会被移除，这里会自动停止
                 if (rock.isDead) {
                     this.cancel()
                     return
                 }
+
+                // [NEW] 扩展命中判定: 雪球默认命中约0.5格, 扩展到1.0格
+                val nearby = rock.world.getNearbyEntities(rock.location, 1.0, 1.0, 1.0)
+                    .filterIsInstance<LivingEntity>()
+                    .filter { it != p }
+                    .filter { it !is Player || canHitPlayers }
+                if (nearby.isNotEmpty()) {
+                    val victim = nearby.first()
+                    victim.damage(0.01, rock)
+                    rock.remove()
+                    this.cancel()
+                    return
+                }
+
                 p.world.spawnParticle(
                     Particle.BLOCK_CRUMBLE,
                     rock.location,

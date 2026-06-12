@@ -105,6 +105,8 @@ class SpawnerManager(
             val currentCount = session.getCount(spawner.id)
             if (currentCount >= spawner.depletionThreshold) {
                 player.sendActionBar(Component.text("§c此处的灵气已耗尽，请前往其他区域狩猎..."))
+                // [NEW] 枯竭时重置所有其他刷怪点的计数
+                session.resetAllExcept(spawner.id)
                 return
             }
         }
@@ -139,12 +141,8 @@ class SpawnerManager(
             }
         }
 
-        // [MODIFIED] 只要成功刷出至少1只怪，就执行后续提示和重置逻辑
+        // [MODIFIED] 只要成功刷出至少1只怪，就执行后续提示
         if (successfulSpawns > 0) {
-            if (spawner.depletionThreshold > 0) {
-                // 执行远处枯竭点重置逻辑
-                session.cleanupDistance(player.location, spawner.id, spawnerConfigMap)
-            }
 
             // 提示与音效 (一次刷怪周期只提示一次，避免刷3只怪发3次声音)
             if (spawner.spawnMessage != null) player.sendMessage(spawner.spawnMessage.replace("&", "§"))
@@ -563,7 +561,7 @@ class SpawnerManager(
 
                 // 如果刷怪点配置已失效(被删了)，或者
                 // 玩家与该刷怪点的距离超过了 RESET_DISTANCE_SQ
-                // 则视为“已远离”，重置其计数
+                // 则视为"已远离"，重置其计数
                 if (depletedConfig == null ||
                     depletedConfig.worldName != playerLoc.world.name ||
                     depletedConfig.center.distanceSquared(playerLoc) > RESET_DISTANCE_SQ
@@ -571,6 +569,11 @@ class SpawnerManager(
                     it.remove()
                 }
             }
+        }
+
+        // [NEW] Boss枯竭时重置所有其他刷怪点的计数
+        fun resetAllExcept(exceptId: String) {
+            counts.keys.removeAll { it != exceptId }
         }
     }
 

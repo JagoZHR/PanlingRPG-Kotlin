@@ -34,9 +34,8 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
     // ==========================================
     // 动态难度
     // ==========================================
-    private fun getDifficultyScale(instance: DungeonInstance): Double {
-        return 1.0 + (instance.players.size - 1) * 0.5
-    }
+    private fun getHpScale(instance: DungeonInstance): Double = 1.0 + (instance.players.size - 1) * 0.5
+    private fun getAtkScale(instance: DungeonInstance): Double = 1.0 + (instance.players.size - 1) * 0.1
 
     // ==========================================
     // 奖励：解锁 T4 装备 + T4 法宝
@@ -127,7 +126,7 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
         }
 
         private fun launchSword() {
-            val scale = getDifficultyScale(instance)
+            val atkScale = getAtkScale(instance)
             val center = instance.centerLocation
 
             // 随机选墙：0=北 1=南 2=东 3=西
@@ -181,7 +180,7 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
 
             // 预警结束后发射飞剑
             Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                spawnSwordEntity(startLoc.clone(), endLoc, direction, distance, scale)
+                spawnSwordEntity(startLoc.clone(), endLoc, direction, distance, atkScale)
             }, warnTicks.toLong())
         }
 
@@ -262,7 +261,8 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
 
         override fun start() {
             val count = instance.players.size
-            val scale = getDifficultyScale(instance)
+            val hpScale = getHpScale(instance)
+            val atkScale = getAtkScale(instance)
             val center = instance.centerLocation
 
             val offsets = when (count) {
@@ -272,16 +272,17 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
             }
 
             for (offset in offsets) {
-                val loc = center.clone().add(offset).add(0.0, 1.0, 0.0)
-                val golem = plugin.mobManager.spawnMob(loc, "dungeon_white_tiger_golem") as? IronGolem ?: continue
+                // 主傀儡
+                val loc1 = center.clone().add(offset).add(0.0, 1.0, 0.0)
+                val golem1 = plugin.mobManager.spawnMob(loc1, "dungeon_white_tiger_golem") as? IronGolem ?: continue
+                scaleMob(golem1, hpScale, atkScale)
+                golems[golem1] = golem1.getAttribute(Attribute.MAX_HEALTH)?.baseValue ?: 450.0
 
-                val hp = 150.0 * scale
-                golem.getAttribute(Attribute.MAX_HEALTH)?.baseValue = hp
-                golem.health = hp
-                golem.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 8.0 * scale
-                golem.isGlowing = false
-
-                golems[golem] = hp
+                // 副傀儡 (半血半攻)
+                val loc2 = center.clone().add(offset).add(1.5, 1.0, 0.0)
+                val golem2 = plugin.mobManager.spawnMob(loc2, "dungeon_white_tiger_golem") as? IronGolem ?: continue
+                scaleMob(golem2, hpScale, atkScale, hpMult = 0.5, atkMult = 0.5)
+                golems[golem2] = golem2.getAttribute(Attribute.MAX_HEALTH)?.baseValue ?: 225.0
             }
 
             nextReflectTick = instance.tickCount + reflectInterval
@@ -396,35 +397,36 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
 
         private fun reviveAll() {
             val center = instance.centerLocation
-            val scale = getDifficultyScale(instance)
+            val hpScale = getHpScale(instance)
+            val atkScale = getAtkScale(instance)
             var revived = 0
 
             val toRevive = deadTicks.keys.toList()
             deadTicks.clear()
 
             for (uuid in toRevive) {
-                val loc = center.clone().add(
-                    (Random.nextDouble() - 0.5) * 4,
-                    1.0,
-                    (Random.nextDouble() - 0.5) * 4
-                )
-                val golem = plugin.mobManager.spawnMob(loc, "dungeon_white_tiger_golem") as? IronGolem ?: continue
+                repeat(2) { i ->
+                    val loc = center.clone().add(
+                        (Random.nextDouble() - 0.5) * 4 + i.toDouble(),
+                        1.0,
+                        (Random.nextDouble() - 0.5) * 4
+                    )
+                    val golem = plugin.mobManager.spawnMob(loc, "dungeon_white_tiger_golem") as? IronGolem ?: return@repeat
+                    // 复活半血：主 0.5 倍，副 0.25 倍
+                    val subMult = if (i == 0) 0.5 else 0.25
+                    scaleMob(golem, hpScale, atkScale, hpMult = subMult, atkMult = subMult)
 
-                val hp = 150.0 * scale * 0.5  // 50% HP
-                golem.getAttribute(Attribute.MAX_HEALTH)?.baseValue = hp
-                golem.health = hp
-                golem.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 8.0 * scale
+                    if (reflectActive) {
+                        golem.setMetadata("pl_reflect", FixedMetadataValue(plugin, true))
+                        golem.isGlowing = true
+                    }
 
-                if (reflectActive) {
-                    golem.setMetadata("pl_reflect", FixedMetadataValue(plugin, true))
-                    golem.isGlowing = true
+                    golems[golem] = golem.getAttribute(Attribute.MAX_HEALTH)?.baseValue ?: 225.0
+                    revived++
                 }
-
-                golems[golem] = hp
-                revived++
             }
 
-            instance.broadcast("§c时间已过！§6玄金傀儡§c以 50% 血量复活了 $revived 个！")
+            instance.broadcast("§c时间已过！§6玄金傀儡§c以半血复活了 $revived 个！")
             instance.broadcastSound(Sound.ENTITY_IRON_GOLEM_REPAIR)
         }
 
@@ -453,6 +455,17 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
             }
             golems.clear()
             deadTicks.clear()
+        }
+
+        // 从 YAML 基值 × 难度倍率缩放 (速度不缩放)
+        private fun scaleMob(entity: LivingEntity, hpScale: Double, atkScale: Double, hpMult: Double = 1.0, atkMult: Double = 1.0) {
+            entity.getAttribute(Attribute.MAX_HEALTH)?.let { attr ->
+                attr.baseValue = attr.baseValue * hpScale * hpMult
+                entity.health = attr.baseValue
+            }
+            entity.getAttribute(Attribute.ATTACK_DAMAGE)?.let { attr ->
+                attr.baseValue = attr.baseValue * atkScale * atkMult
+            }
         }
     }
 }

@@ -6,6 +6,7 @@ import com.panling.basic.api.BuffType
 import com.panling.basic.util.CombatUtil
 import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Material
+import org.bukkit.NamespacedKey
 import org.bukkit.Particle
 import org.bukkit.Sound
 import org.bukkit.attribute.Attribute
@@ -25,6 +26,11 @@ class ElementalManager(
     private val statCalculator: StatCalculator,
     private val mobManager: MobManager
 ) {
+
+    companion object {
+        /** 火生土护盾已翻倍标记 — 同一护盾只能翻倍一次 */
+        val SHIELD_DOUBLED_KEY = NamespacedKey("panling", "shield_doubled")
+    }
 
     enum class Element(val elementName: String, val color: NamedTextColor) {
         METAL("金", NamedTextColor.YELLOW),
@@ -57,8 +63,14 @@ class ElementalManager(
 
     // 统一逻辑处理
     private fun handleLogic(source: Player, target: LivingEntity, current: Element, value: Double, isAttackMode: Boolean) {
-        var mark = Element.NONE
         val pdc = target.persistentDataContainer
+
+        // 如果目标已无护盾，清除翻倍标记
+        if (target.getPotionEffect(PotionEffectType.ABSORPTION) == null) {
+            pdc.remove(SHIELD_DOUBLED_KEY)
+        }
+
+        var mark = Element.NONE
         if (pdc.has(BasicKeys.ELEMENT_MARK, PersistentDataType.STRING)) {
             try {
                 mark = Element.valueOf(pdc.get(BasicKeys.ELEMENT_MARK, PersistentDataType.STRING)!!)
@@ -219,25 +231,24 @@ class ElementalManager(
 
         // 4. 火生土: 护盾翻倍
         if (mark == Element.FIRE && current == Element.EARTH) {
-            // [MODIFIED] 适配药水版护盾
             val absEffect = target.getPotionEffect(PotionEffectType.ABSORPTION)
+            val pdc = target.persistentDataContainer
 
-            // 只有当目标身上有伤害吸收药水时才翻倍
-            if (absEffect != null) {
-                val currentAmp = absEffect.amplifier
-                var newAmp = (currentAmp + 1) * 2 - 1 // (等级 * 4) * 2 / 4 - 1 -> 简化为翻倍逻辑
+            // 没有护盾 → 不触发
+            if (absEffect == null) return false
 
-                if (newAmp > 255) newAmp = 255
+            // 已经翻倍过 → 不触发（也不消耗标记）
+            if (pdc.has(SHIELD_DOUBLED_KEY, PersistentDataType.BYTE)) return false
 
-                // 重新施加翻倍后的药水
-                target.addPotionEffect(PotionEffect(PotionEffectType.ABSORPTION, absEffect.duration, newAmp, false, false, true))
+            val currentAmp = absEffect.amplifier
+            var newAmp = (currentAmp + 1) * 2 - 1
+            if (newAmp > 255) newAmp = 255
 
-                broadcast(caster, target, "§6[火生土] §f固若金汤！§7${target.name} §f护盾翻倍！")
-                return true
-            } else {
-                // 如果没护盾，火生土无效 (不消耗标记，或者消耗但无效果)
-                return false
-            }
+            target.addPotionEffect(PotionEffect(PotionEffectType.ABSORPTION, absEffect.duration, newAmp, false, false, true))
+            pdc.set(SHIELD_DOUBLED_KEY, PersistentDataType.BYTE, 1.toByte())
+
+            broadcast(caster, target, "§6[火生土] §f固若金汤！§7${target.name} §f护盾翻倍！")
+            return true
         }
 
         // 5. 土生金: 额外双抗 (+50% SP)
@@ -345,6 +356,8 @@ class ElementalManager(
     private fun triggerEarthShieldBreak(center: LivingEntity) {
         center.world.spawnParticle(Particle.BLOCK_CRUMBLE, center.eyeLocation, 30, 0.5, 0.5, 0.5, Material.DIRT.createBlockData())
         center.world.playSound(center.location, Sound.ITEM_SHIELD_BREAK, 1f, 0.8f)
+        // 清除火生土翻倍标记，让新护盾可以再次翻倍
+        center.persistentDataContainer.remove(SHIELD_DOUBLED_KEY)
 
         for (e in center.getNearbyEntities(2.0, 2.0, 2.0)) {
             if (e is LivingEntity && e != center) {

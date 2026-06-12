@@ -56,11 +56,24 @@ class WoodAttackT3Strategy(private val plugin: PanlingBasic) : MageSkillStrategy
 
         object : BukkitRunnable() {
             override fun run() {
-                // 如果命中玩家，Listener会移除实体，isDead()变真，这里就会自动停止，不再生成粒子
                 if (proj.isDead) {
                     this.cancel()
                     return
                 }
+
+                // [NEW] 扩展命中判定: 雪球默认命中约0.5格, 扩展到1.0格
+                val nearby = proj.world.getNearbyEntities(proj.location, 1.0, 1.0, 1.0)
+                    .filterIsInstance<LivingEntity>()
+                    .filter { it != p }
+                    .filter { it !is Player || canHitPlayers }
+                if (nearby.isNotEmpty()) {
+                    val victim = nearby.first()
+                    victim.damage(0.01, proj)
+                    proj.remove()
+                    this.cancel()
+                    return
+                }
+
                 p.world.spawnParticle(
                     Particle.HAPPY_VILLAGER,
                     proj.location,

@@ -5,6 +5,7 @@ import com.panling.basic.api.ArrayStance
 import com.panling.basic.api.BasicKeys
 import com.panling.basic.api.PlayerClass
 import com.panling.basic.api.PlayerRace
+import com.panling.basic.api.PlayerSubClass
 import com.panling.basic.ui.BankUI
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
@@ -256,6 +257,16 @@ class MenuManager(
         val moveSpeed = player.getAttribute(Attribute.MOVEMENT_SPEED)?.value ?: 0.2
         lore.add(Component.text("§c❤ 生命: ${player.health.toInt()}/${maxHp.toInt()}").decoration(TextDecoration.ITALIC, false))
         lore.add(Component.text("§f⚡ 速度: ${(moveSpeed * 1000).toInt()}%").decoration(TextDecoration.ITALIC, false))
+
+        // === [NEW] 流派被动效果 ===
+        val subClass = dataManager.getPlayerSubClass(player)
+        if (subClass != PlayerSubClass.NONE) {
+            lore.add(Component.empty())
+            lore.add(Component.text("§6▸ 流派: ${subClass.displayName}").decoration(TextDecoration.ITALIC, false))
+            getSubClassPassives(subClass).forEach { desc ->
+                lore.add(Component.text("§7  $desc").decoration(TextDecoration.ITALIC, false))
+            }
+        }
 
         lore.add(Component.text("§7----------------").decoration(TextDecoration.ITALIC, false))
 
@@ -751,6 +762,33 @@ class MenuManager(
 
         // 刷新菜单显示余额
         openMenu(player)
+    }
+
+    // ── 流派被动描述 ──
+    private fun getSubClassPassives(sub: PlayerSubClass): List<String> {
+        return when (sub) {
+            PlayerSubClass.PO_JUN -> listOf(
+                "被动 · 煞气: 生命越低，伤害越高",
+                "被动 · 嗜血: 持剑越久，吸血越强",
+                "代价: 防御 -50%→-20%"
+            )
+            PlayerSubClass.GOLDEN_BELL -> listOf(
+                "被动 · 金身: 持盾越久，防御越高",
+                "被动 · 嘲讽: 满蓄力时强制怪物攻击你",
+                "代价: 伤害 -50%→-20%"
+            )
+            PlayerSubClass.SNIPER -> listOf(
+                "被动 · 专注: 满拉弓时无视击退抗性",
+                "被动 · 破甲: 可穿透怪物护甲",
+                "代价: 移速 -40%→-20%"
+            )
+            PlayerSubClass.RANGER -> listOf(
+                "被动 · 速射: 持弩5秒→装填+1 穿透+1",
+                "被动 · 连发: 持弩10秒→装填+2 穿透+2 多重射击",
+                "代价: 最大生命 -30%→-20%"
+            )
+            else -> emptyList()
+        }
     }
 
     class MenuHolder : InventoryHolder {

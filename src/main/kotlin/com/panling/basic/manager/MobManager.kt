@@ -9,6 +9,7 @@ import com.panling.basic.mob.skill.MobSkill
 import com.panling.basic.mob.skill.MobSkillRegistry
 import com.panling.basic.mob.skill.impl.LeapSkill
 import com.panling.basic.mob.skill.impl.MessageSkill
+import com.panling.basic.mob.skill.impl.DamageFeedbackSkill
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.Material
@@ -81,7 +82,9 @@ class MobManager(
         val skills: List<SkillEntry>,
         val lootTableIds: List<String>,
         val scale: Double = 1.0, // 体型缩放 (仅 Paper)
-        val rabbitType: String? = null // Rabbit.Type 名称 (仅 RABBIT)
+        val rabbitType: String? = null, // Rabbit.Type 名称 (仅 RABBIT)
+        val noAi: Boolean = false, // 关闭 AI (训练假人)
+        val regenPerSec: Double = 0.0 // 每秒回血百分比 (0=不回)
     )
 
     init {
@@ -125,6 +128,7 @@ class MobManager(
         // Kotlin Lambda 简化
         skillRegistry.register("MESSAGE") { MessageSkill(it) }
         skillRegistry.register("LEAP") { LeapSkill(it) }
+        skillRegistry.register("DAMAGE_FEEDBACK") { DamageFeedbackSkill(it) }
     }
 
     // ==========================================================
@@ -236,7 +240,9 @@ class MobManager(
             skills = skillList,
             lootTableIds = linkedTables,
             scale = scale,
-            rabbitType = rabbitType
+            rabbitType = rabbitType,
+            noAi = sec.getBoolean("no_ai", false),
+            regenPerSec = sec.getDouble("regen", 0.0)
         )
         mobCache[id] = stats
     }
@@ -299,6 +305,22 @@ class MobManager(
 
                 EquipmentSlot.values().forEach { ee.setDropChance(it, 0f) }
             }
+        }
+
+        // === [NEW] 训练假人支持：NoAI + 快速回血 ===
+        if (template.noAi && entity is Mob) {
+            entity.isAware = false // Paper API: 关闭 AI (不移动、不攻击)
+            // 额外保险：清空所有 AI 目标
+            entity.target = null
+        }
+        if (template.regenPerSec > 0.0) {
+            val maxHp = entity.getAttribute(Attribute.MAX_HEALTH)?.value ?: template.hp
+            val healPerTick = maxHp * template.regenPerSec / 20.0
+            entity.persistentDataContainer.set(
+                NamespacedKey(plugin, "pl_dummy_regen"),
+                PersistentDataType.DOUBLE,
+                healPerTick
+            )
         }
 
         triggerSkills(entity, SkillTrigger.SPAWN, null)
@@ -394,6 +416,16 @@ class MobManager(
 
                 for (entity in world.livingEntities) {
                     if (entity.isValid && entity.persistentDataContainer.has(BasicKeys.MOB_ID, PersistentDataType.STRING)) {
+
+                        // [NEW] 训练假人回血
+                        val healPerTick = entity.persistentDataContainer.get(
+                            NamespacedKey(plugin, "pl_dummy_regen"),
+                            PersistentDataType.DOUBLE
+                        )
+                        if (healPerTick != null && healPerTick > 0) {
+                            val maxHp = entity.getAttribute(Attribute.MAX_HEALTH)?.baseValue ?: entity.health
+                            entity.health = (entity.health + healPerTick).coerceAtMost(maxHp)
+                        }
 
                         if (entity.persistentDataContainer.has(BasicKeys.MOB_OWNER, PersistentDataType.STRING)) {
                             handlePrivateMobAI(entity, players)

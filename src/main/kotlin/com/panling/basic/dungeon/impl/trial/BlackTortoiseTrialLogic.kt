@@ -17,6 +17,7 @@ import org.bukkit.entity.EntityType
 import org.bukkit.entity.Player
 import org.bukkit.entity.Ravager
 import org.bukkit.entity.Silverfish
+import org.bukkit.entity.LivingEntity
 import org.bukkit.event.entity.EntityDeathEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.potion.PotionEffect
@@ -33,9 +34,8 @@ class BlackTortoiseTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugi
     override val templateId = "black_tortoise_trial"
     override val waitDuration = 10
 
-    private fun getDifficultyScale(instance: DungeonInstance): Double {
-        return 1.0 + (instance.players.size - 1) * 0.5
-    }
+    private fun getHpScale(instance: DungeonInstance): Double = 1.0 + (instance.players.size - 1) * 0.5
+    private fun getAtkScale(instance: DungeonInstance): Double = 1.0 + (instance.players.size - 1) * 0.1
 
     // ==========================================
     // 奖励：解锁 T5 装备 + T5 法宝
@@ -206,38 +206,40 @@ class BlackTortoiseTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugi
     inner class Phase2Boss(instance: DungeonInstance) : AbstractCombatPhase(plugin, instance) {
 
         override fun start() {
-            val scale = getDifficultyScale(instance)
+            val hpScale = getHpScale(instance)
+            val atkScale = getAtkScale(instance)
             val count = instance.players.size
             val center = instance.centerLocation
 
             // 重甲冥龟（小型劫掠兽）
             val ravager = plugin.mobManager.spawnMob(center.clone().add(0.0, 1.0, 0.0), "dungeon_black_tortoise_boss") as? Ravager ?: return
-            val bossHp = 550.0 * scale
-            ravager.getAttribute(Attribute.MAX_HEALTH)?.baseValue = bossHp
-            ravager.health = bossHp
-            ravager.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 12.0 * scale
             ravager.isAware = true
-
+            scaleMob(ravager, hpScale, atkScale)
+            // 劫掠兽不走 MOVEMENT_SPEED 属性，用药水减速替代
+            ravager.addPotionEffect(PotionEffect(PotionEffectType.SLOWNESS, Int.MAX_VALUE, 3, false, false))
             spawnMob(ravager)
 
-            // 幽水灵蛇（蠹虫 × 玩家数量）
+            // 幽水灵蛇（蠹虫 × 玩家数 × 2，一主一副）
             for (i in 0 until count) {
                 val offset = when (i) {
                     0 -> Vector(3.0, 0.0, 0.0)
                     1 -> Vector(-3.0, 0.0, 0.0)
                     else -> Vector(0.0, 0.0, 3.0)
                 }
-                val loc = center.clone().add(offset).add(0.0, 1.0, 0.0)
+                // 主蛇
+                val loc1 = center.clone().add(offset).add(0.0, 1.0, 0.0)
+                val sf1 = plugin.mobManager.spawnMob(loc1, "dungeon_black_tortoise_add") as? Silverfish ?: continue
+                scaleMob(sf1, hpScale, atkScale)
+                spawnMob(sf1)
 
-                val silverfish = plugin.mobManager.spawnMob(loc, "dungeon_black_tortoise_add") as? Silverfish ?: continue
-                silverfish.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 100.0 * scale
-                silverfish.health = 100.0 * scale
-                silverfish.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 5.0 * scale
-
-                spawnMob(silverfish)
+                // 副蛇 (半血半攻)
+                val loc2 = center.clone().add(offset).add(1.0, 1.0, 0.0)
+                val sf2 = plugin.mobManager.spawnMob(loc2, "dungeon_black_tortoise_add") as? Silverfish ?: continue
+                scaleMob(sf2, hpScale, atkScale, hpMult = 0.5, atkMult = 0.5)
+                spawnMob(sf2)
             }
 
-            instance.broadcast("§3重甲冥龟 §f与 §b${count} 条幽水灵蛇 §f出现了！")
+            instance.broadcast("§3重甲冥龟 §f与 §b${count * 2} 条幽水灵蛇 §f出现了！")
             instance.broadcastSound(Sound.ENTITY_RAVAGER_ROAR)
         }
 
@@ -251,6 +253,16 @@ class BlackTortoiseTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugi
             instance.broadcast("§3§l深渊生物已全部清除！§r")
             instance.broadcastSound(Sound.UI_TOAST_CHALLENGE_COMPLETE)
             goToRewardPhase(instance)
+        }
+
+        private fun scaleMob(entity: LivingEntity, hpScale: Double, atkScale: Double, hpMult: Double = 1.0, atkMult: Double = 1.0) {
+            entity.getAttribute(Attribute.MAX_HEALTH)?.let { attr ->
+                attr.baseValue = attr.baseValue * hpScale * hpMult
+                entity.health = attr.baseValue
+            }
+            entity.getAttribute(Attribute.ATTACK_DAMAGE)?.let { attr ->
+                attr.baseValue = attr.baseValue * atkScale * atkMult
+            }
         }
     }
 }
