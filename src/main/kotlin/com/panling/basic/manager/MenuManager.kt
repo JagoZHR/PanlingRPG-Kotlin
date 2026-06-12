@@ -209,6 +209,18 @@ class MenuManager(
         changelogBtn.itemMeta = chMeta
         fullInv.setItem(0, changelogBtn)
 
+        // === Slot 7: Boss 图鉴 ===
+        val bossGuideBtn = ItemStack(Material.FILLED_MAP)
+        val bgMeta = bossGuideBtn.itemMeta
+        bgMeta.displayName(Component.text("§a§l[ Boss 图鉴 ]").decoration(TextDecoration.ITALIC, false))
+        val bgLore = ArrayList<Component>()
+        bgLore.add(Component.text("§7查看所有野外Boss的位置").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
+        bgLore.add(Component.text("§7左键追踪 → 指南针指向目标").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
+        bgMeta.lore(bgLore)
+        bgMeta.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "OPEN_BOSS_GUIDE")
+        bossGuideBtn.itemMeta = bgMeta
+        fullInv.setItem(7, bossGuideBtn)
+
         // === Slot 8: 传送 ===
         val teleportBtn = ItemStack(Material.WARPED_FUNGUS_ON_A_STICK)
         val tpMeta = teleportBtn.itemMeta
@@ -605,6 +617,12 @@ class MenuManager(
             // 传送
             if ("OPEN_TELEPORT" == action) {
                 plugin.teleportUI.open(player)
+                return
+            }
+
+            // Boss 图鉴
+            if ("OPEN_BOSS_GUIDE" == action) {
+                plugin.bossGuideUI.open(player)
                 return
             }
 

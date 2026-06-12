@@ -18,6 +18,7 @@ import com.panling.basic.ui.QuestUI
 import com.panling.basic.ui.SetUI
 import com.panling.basic.ui.ShopUI
 import com.panling.basic.ui.TeleportUI
+import com.panling.basic.ui.BossGuideUI
 import org.bukkit.plugin.java.JavaPlugin
 
 class PanlingBasic : JavaPlugin() {
@@ -65,6 +66,7 @@ class PanlingBasic : JavaPlugin() {
     lateinit var changelogUI: ChangelogUI
     lateinit var teleportManager: TeleportManager
     lateinit var teleportUI: TeleportUI
+    lateinit var bossGuideUI: BossGuideUI
 
     // 内部使用的管理器，不需要公开 getter 也可以直接 private
     lateinit var commandManager: CommandManager
@@ -139,6 +141,9 @@ class PanlingBasic : JavaPlugin() {
         // 传送模块
         teleportManager = TeleportManager(this)
         teleportUI = TeleportUI(this)
+
+        // Boss 图鉴导航
+        bossGuideUI = BossGuideUI(this)
 
         // 5. 业务逻辑层
         invListener = InventoryListener(this, playerDataManager, itemManager, statCalculator)

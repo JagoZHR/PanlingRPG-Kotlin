@@ -1,6 +1,7 @@
 package com.panling.basic.manager
 
 import com.panling.basic.PanlingBasic
+import com.panling.basic.api.BasicKeys
 import io.papermc.paper.registry.RegistryAccess
 import io.papermc.paper.registry.RegistryKey
 import net.kyori.adventure.text.Component
@@ -49,6 +50,12 @@ class ItemKitManager(private val plugin: PanlingBasic) {
 
             val amount = (map["amount"] as? Number)?.toInt() ?: 1
             val slot = (map["slot"] as? Number)?.toInt() ?: -1
+
+            // 解锁使用资格（插件物品需要）
+            val rawId = map["id"]?.toString()
+            if (rawId != null && !rawId.startsWith(VANILLA_PREFIX)) {
+                plugin.playerDataManager.addUnlockedItem(player, rawId)
+            }
 
             item.amount = amount
 

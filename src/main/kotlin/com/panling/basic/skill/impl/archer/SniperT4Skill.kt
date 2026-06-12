@@ -43,7 +43,7 @@ class SniperT4Skill(private val plugin: PanlingBasic) :
 
         // 3. 施加定身 (Root) - 持续 1秒 (20 ticks)
         // 这里的 ROOT 效果由你的 BuffManager 提供
-        plugin.buffManager.addBuff(target, BuffType.ROOT, 20)
+        plugin.buffManager.addBuff(target, BuffType.ROOT, 40)
 
         // 4. 命中反馈 (锁链/重击感)
         target.world.playSound(target.location, Sound.BLOCK_CHAIN_BREAK, 1.0f, 0.5f)

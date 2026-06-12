@@ -105,6 +105,7 @@ class SpawnerManager(
             val currentCount = session.getCount(spawner.id)
             if (currentCount >= spawner.depletionThreshold) {
                 player.sendActionBar(Component.text("§c此处的灵气已耗尽，请前往其他区域狩猎..."))
+                player.sendMessage("§c§l[枯竭] §7此处的灵气已耗尽，请前往其他区域狩猎...")
                 // [NEW] 枯竭时重置所有其他刷怪点的计数
                 session.resetAllExcept(spawner.id)
                 return

@@ -10,6 +10,14 @@ import com.panling.basic.mob.skill.MobSkillRegistry
 import com.panling.basic.mob.skill.impl.LeapSkill
 import com.panling.basic.mob.skill.impl.MessageSkill
 import com.panling.basic.mob.skill.impl.DamageFeedbackSkill
+import com.panling.basic.mob.skill.impl.PullSkill
+import com.panling.basic.mob.skill.impl.SummonSkill
+import com.panling.basic.mob.skill.impl.CobwebSkill
+import com.panling.basic.mob.skill.impl.FireAuraSkill
+import com.panling.basic.mob.skill.impl.DashSkill
+import com.panling.basic.mob.skill.impl.ThrowSkill
+import com.panling.basic.mob.skill.impl.MirrorSkill
+import com.panling.basic.mob.skill.impl.RegenSkill
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.Material
@@ -129,6 +137,14 @@ class MobManager(
         skillRegistry.register("MESSAGE") { MessageSkill(it) }
         skillRegistry.register("LEAP") { LeapSkill(it) }
         skillRegistry.register("DAMAGE_FEEDBACK") { DamageFeedbackSkill(it) }
+        skillRegistry.register("PULL") { PullSkill(it) }
+        skillRegistry.register("SUMMON") { SummonSkill(it) }
+        skillRegistry.register("COBWEB") { CobwebSkill(it) }
+        skillRegistry.register("FIRE_AURA") { FireAuraSkill(it) }
+        skillRegistry.register("DASH") { DashSkill(it) }
+        skillRegistry.register("THROW") { ThrowSkill(it) }
+        skillRegistry.register("MIRROR") { MirrorSkill(it) }
+        skillRegistry.register("REGEN") { RegenSkill(it) }
     }
 
     // ==========================================================
@@ -386,6 +402,10 @@ class MobManager(
     // ==========================================================
 
     fun triggerSkills(mob: LivingEntity, trigger: SkillTrigger, target: LivingEntity?) {
+        // 召唤物不触发技能，防止递归召唤
+        val minionKey = NamespacedKey(plugin, "is_summon_minion")
+        if (mob.persistentDataContainer.has(minionKey, PersistentDataType.BYTE)) return
+
         val stats = getMobStats(mob)
         // stats.skills 不能为空
         if (stats.skills.isEmpty()) return
@@ -425,6 +445,21 @@ class MobManager(
                         if (healPerTick != null && healPerTick > 0) {
                             val maxHp = entity.getAttribute(Attribute.MAX_HEALTH)?.baseValue ?: entity.health
                             entity.health = (entity.health + healPerTick).coerceAtMost(maxHp)
+                        }
+
+                        // [NEW] HP阈值技能触发 (HP_50, HP_20)
+                        val hp50Key = NamespacedKey(plugin, "pl_hp50_fired")
+                        val hp20Key = NamespacedKey(plugin, "pl_hp20_fired")
+                        val maxHp = entity.getAttribute(Attribute.MAX_HEALTH)?.value ?: 20.0
+                        val hpRatio = entity.health / maxHp
+                        val pdc = entity.persistentDataContainer
+                        if (hpRatio <= 0.5 && !pdc.has(hp50Key, PersistentDataType.BYTE)) {
+                            pdc.set(hp50Key, PersistentDataType.BYTE, 1)
+                            triggerSkills(entity, SkillTrigger.HP_50, (entity as? Mob)?.target)
+                        }
+                        if (hpRatio <= 0.2 && !pdc.has(hp20Key, PersistentDataType.BYTE)) {
+                            pdc.set(hp20Key, PersistentDataType.BYTE, 1)
+                            triggerSkills(entity, SkillTrigger.HP_20, (entity as? Mob)?.target)
                         }
 
                         if (entity.persistentDataContainer.has(BasicKeys.MOB_OWNER, PersistentDataType.STRING)) {

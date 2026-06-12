@@ -159,16 +159,23 @@ class BlackTortoiseTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugi
                         return
                     }
 
-                    // 蓝色水波粒子环
-                    val particleCount = (currentRadius * 3).toInt().coerceAtLeast(12)
+                    // 明显的水波粒子环 — 双层
+                    val particleCount = (currentRadius * 4).toInt().coerceAtLeast(16)
                     for (i in 0 until particleCount) {
                         val angle = (i.toDouble() / particleCount) * 2 * Math.PI
                         val x = center.x + cos(angle) * currentRadius
                         val z = center.z + sin(angle) * currentRadius
+                        // 主环：白色飞溅粒子
+                        instance.world.spawnParticle(
+                            Particle.SPLASH,
+                            x, center.y + 0.3, z,
+                            3, 0.3, 0.5, 0.3, 0.1
+                        )
+                        // 底层：气泡辅助
                         instance.world.spawnParticle(
                             Particle.BUBBLE_POP,
-                            x, center.y + 0.5, z,
-                            1, 0.0, 0.0, 0.0, 0.0
+                            x, center.y + 0.1, z,
+                            2, 0.2, 0.1, 0.2, 0.05
                         )
                     }
 

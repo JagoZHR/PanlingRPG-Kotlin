@@ -112,30 +112,33 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
         var subClass = PlayerSubClass.NONE
         val slot = getActiveSlot(player)
 
-        if (slot != -1) {
-            val item = player.inventory.getItem(slot)
-            if (item != null && item.hasItemMeta()) {
-                val pdc = item.itemMeta!!.persistentDataContainer
+        // 获取当前激活槽位对应的物品：主手 slot 0 或副手 -1
+        val activeItem: org.bukkit.inventory.ItemStack? = when (slot) {
+            -1  -> player.inventory.itemInOffHand
+            else -> player.inventory.getItem(slot)
+        }
 
-                // 检查职业限制
-                val reqClassStr = pdc.get(BasicKeys.FEATURE_REQ_CLASS, PersistentDataType.STRING)
-                var classMatch = true
-                if (reqClassStr != null) {
-                    try {
-                        val req = PlayerClass.valueOf(reqClassStr)
-                        if (req != PlayerClass.NONE && req != getPlayerClass(player)) {
-                            classMatch = false
-                        }
-                    } catch (ignored: Exception) {}
-                }
+        if (activeItem != null && activeItem.hasItemMeta()) {
+            val pdc = activeItem.itemMeta!!.persistentDataContainer
 
-                if (classMatch) {
-                    val subName = pdc.get(BasicKeys.ITEM_SUB_CLASS, PersistentDataType.STRING)
-                    if (subName != null) {
-                        try {
-                            subClass = PlayerSubClass.valueOf(subName)
-                        } catch (ignored: Exception) {}
+            // 检查职业限制
+            val reqClassStr = pdc.get(BasicKeys.FEATURE_REQ_CLASS, PersistentDataType.STRING)
+            var classMatch = true
+            if (reqClassStr != null) {
+                try {
+                    val req = PlayerClass.valueOf(reqClassStr)
+                    if (req != PlayerClass.NONE && req != getPlayerClass(player)) {
+                        classMatch = false
                     }
+                } catch (ignored: Exception) {}
+            }
+
+            if (classMatch) {
+                val subName = pdc.get(BasicKeys.ITEM_SUB_CLASS, PersistentDataType.STRING)
+                if (subName != null) {
+                    try {
+                        subClass = PlayerSubClass.valueOf(subName)
+                    } catch (ignored: Exception) {}
                 }
             }
         }
@@ -197,6 +200,12 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
             val item = player.inventory.getItem(activeSlot)
             if (item != null && item.hasItemMeta()) {
                 currentId = item.itemMeta!!.persistentDataContainer
+                    .get(BasicKeys.ITEM_ID, PersistentDataType.STRING) ?: "AIR"
+            }
+        } else if (activeSlot == -1) {
+            val offhand = player.inventory.itemInOffHand
+            if (offhand.hasItemMeta()) {
+                currentId = offhand.itemMeta!!.persistentDataContainer
                     .get(BasicKeys.ITEM_ID, PersistentDataType.STRING) ?: "AIR"
             }
         }

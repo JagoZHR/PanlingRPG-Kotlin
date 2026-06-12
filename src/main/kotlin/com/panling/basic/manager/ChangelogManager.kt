@@ -14,6 +14,7 @@ import java.time.format.DateTimeParseException
  * 配置文件格式：
  *   changelogs/<任意名>.yml:
  *     date: "2024-06-15 14:30"
+ *     title: "V4 — Boss 图鉴 & 导航系统"    # 可选
  *     content:
  *       - "§e新增: §f..."
  *       - "§e修复: §f..."
@@ -23,6 +24,7 @@ class ChangelogManager(private val plugin: PanlingBasic) : Reloadable {
     data class Entry(
         val date: LocalDateTime,
         val dateStr: String,
+        val title: String?,
         val content: List<String>
     )
 
@@ -52,7 +54,9 @@ class ChangelogManager(private val plugin: PanlingBasic) : Reloadable {
             val content = cfg.getStringList("content")
             if (content.isEmpty()) return@forEach
 
-            entries.add(Entry(date, dateStr, content))
+            val title = cfg.getString("title")
+
+            entries.add(Entry(date, dateStr, title, content))
         }
 
         entries.sortByDescending { it.date }

@@ -158,6 +158,12 @@ class InventoryListener(
         refreshPlayerStatus(event.player)
     }
 
+    // F键交换主副手 — 刷新激活状态和 Lore
+    @EventHandler
+    fun onSwapOffhand(event: PlayerSwapHandItemsEvent) {
+        refreshPlayerStatus(event.player)
+    }
+
     @EventHandler
     fun onJoin(event: PlayerJoinEvent) {
         refreshPlayerStatus(event.player)

@@ -132,6 +132,31 @@ class MobListener(private val mobManager: MobManager) : Listener {
                 event.isCancelled = true
             }
         }
+
+        // 3. [NEW] MIRROR 反伤护盾
+        val mirrorVictim = event.entity as? LivingEntity
+        if (mirrorVictim != null && !event.isCancelled) {
+            val mirrorStr = mirrorVictim.persistentDataContainer.get(
+                com.panling.basic.mob.skill.impl.MirrorSkill.MIRROR_KEY,
+                PersistentDataType.STRING
+            )
+            if (mirrorStr != null) {
+                try {
+                    val parts = mirrorStr.split(":")
+                    val rate = parts[0].toDouble()
+                    val expireTick = parts[1].toInt()
+                    if (org.bukkit.Bukkit.getCurrentTick() < expireTick) {
+                        val attacker = getAttackerPlayer(event.damager)
+                        if (attacker != null) {
+                            val reflectDmg = event.finalDamage * rate
+                            if (reflectDmg > 0) {
+                                attacker.damage(reflectDmg)
+                            }
+                        }
+                    }
+                } catch (ignored: Exception) {}
+            }
+        }
     }
 
     // 辅助方法：获取攻击来源玩家（处理射箭等情况）

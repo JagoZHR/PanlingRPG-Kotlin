@@ -112,6 +112,14 @@ class ForgeUI(private val manager: ForgeManager) {
             icon.itemMeta = meta
             inv.setItem(SLOTS_27[i], icon)
         }
+        // [NEW] 转换按钮
+        val convertIcon = ItemStack(Material.ANVIL)
+        val cMeta = convertIcon.itemMeta
+        cMeta.displayName(Component.text("§d转换").color(NamedTextColor.LIGHT_PURPLE).decoration(TextDecoration.BOLD, true).decoration(TextDecoration.ITALIC, false))
+        cMeta.persistentDataContainer.set(subKey, PersistentDataType.STRING, "CONVERT")
+        convertIcon.itemMeta = cMeta
+        inv.setItem(SLOTS_27[pairs.size], convertIcon)
+
         addBackButton(inv, 18, "MAIN")
         fillBorder(inv)
         player.openInventory(inv)
@@ -147,7 +155,6 @@ class ForgeUI(private val manager: ForgeManager) {
 
         // 过滤
         val filtered = allRecipes.filter { recipe ->
-            if (recipe.tier == 0 && recipe.sub == null) return@filter false  // 只过滤非转换的无阶配方
             if (recipe.requiresUnlock && !dataManager.hasUnlockedRecipe(player, recipe.id)) return@filter false
             // 职业过滤
             val reqClassStr = manager.itemManager.getTemplate(recipe.targetItemId)?.reqClass
@@ -159,9 +166,10 @@ class ForgeUI(private val manager: ForgeManager) {
             }
             // 子过滤
             if (subFilter != null) {
-                when (category) {
-                    ForgeCategory.WEAPON -> recipe.sub == subFilter
-                    ForgeCategory.ARMOR -> recipe.slot == subFilter
+                when {
+                    subFilter == "CONVERT" -> recipe.tier == 0  // 转换页：只显示 tier=0 的配方
+                    category == ForgeCategory.WEAPON -> recipe.sub == subFilter && recipe.tier > 0  // 流派页：排除转换配方
+                    category == ForgeCategory.ARMOR -> recipe.slot == subFilter
                     else -> false
                 }
             } else true

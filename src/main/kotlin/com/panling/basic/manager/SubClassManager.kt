@@ -21,6 +21,7 @@ import org.bukkit.event.entity.EntityTargetEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.metadata.FixedMetadataValue
 import org.bukkit.persistence.PersistentDataType
+import org.bukkit.persistence.PersistentDataContainer
 import org.bukkit.plugin.java.JavaPlugin
 import java.util.*
 import kotlin.math.max
@@ -103,7 +104,7 @@ class SubClassManager(
             if (item == null || item.type != Material.CROSSBOW || !item.hasItemMeta()) continue
 
             // 只有当是本插件物品时才处理
-            val meta = item.itemMeta!! // hasItemMeta checked
+            val meta = item.itemMeta!!
             val pdc = meta.persistentDataContainer
             if (!pdc.has(BasicKeys.ITEM_ID, PersistentDataType.STRING)) continue
 
@@ -113,71 +114,92 @@ class SubClassManager(
                 bonus = getStrategy(player).getRangerEnchantBonus(player, heldTime)
             }
 
-            val bonusCharge = bonus[0]
-            val bonusPierce = bonus[1]
-            val shouldAddMultishot = (bonus[2] == 1)
+            applyRangerEnchant(item, meta, pdc, bonus, i == activeSlot && currentSub == PlayerSubClass.RANGER, player)
+        }
 
-            var changed = false
-
-            // A. 快速装填
-            // [修复] 使用 Kotlin 标准写法 pdc.get(...) ?: 0，移除自定义 getOrDefault 扩展函数
-            val lastBonusCharge = pdc.get(rangerBonusChargeKey, PersistentDataType.INTEGER) ?: 0
-
-            val currentLevelCharge = meta.getEnchantLevel(Enchantment.QUICK_CHARGE)
-            val baseCharge = max(0, currentLevelCharge - lastBonusCharge)
-            var newCharge = baseCharge + bonusCharge
-            if (newCharge > 5) newCharge = 5
-
-            if (currentLevelCharge != newCharge) {
-                if (newCharge > 0) meta.addEnchant(Enchantment.QUICK_CHARGE, newCharge, true)
-                else meta.removeEnchant(Enchantment.QUICK_CHARGE)
-                changed = true
+        // [NEW] 副手弩检查 (1.21+ getContents 不包含副手)
+        val offhand = player.inventory.itemInOffHand
+        if (offhand.type == Material.CROSSBOW && offhand.hasItemMeta()) {
+            val offMeta = offhand.itemMeta!!
+            val offPdc = offMeta.persistentDataContainer
+            if (offPdc.has(BasicKeys.ITEM_ID, PersistentDataType.STRING)) {
+                var bonus = intArrayOf(0, 0, 0)
+                if (currentSub == PlayerSubClass.RANGER && activeSlot == -1) {
+                    bonus = getStrategy(player).getRangerEnchantBonus(player, heldTime)
+                }
+                applyRangerEnchant(offhand, offMeta, offPdc, bonus, activeSlot == -1 && currentSub == PlayerSubClass.RANGER, player)
+                player.inventory.setItemInOffHand(offhand)
             }
-            if (bonusCharge > 0) pdc.set(rangerBonusChargeKey, PersistentDataType.INTEGER, bonusCharge)
-            else pdc.remove(rangerBonusChargeKey)
+        }
+    }
 
-            // B. 穿透
-            // [修复] 同上，使用 ?: 0
-            val lastBonusPierce = pdc.get(rangerBonusPierceKey, PersistentDataType.INTEGER) ?: 0
+    private fun applyRangerEnchant(
+        item: ItemStack, meta: org.bukkit.inventory.meta.ItemMeta,
+        pdc: PersistentDataContainer, bonus: IntArray, isActive: Boolean,
+        player: Player
+    ) {
+        val bonusCharge = bonus[0]
+        val bonusPierce = bonus[1]
+        val shouldAddMultishot = (bonus[2] == 1)
 
-            val currentLevelPierce = meta.getEnchantLevel(Enchantment.PIERCING)
-            val basePierce = max(0, currentLevelPierce - lastBonusPierce)
-            var newPierce = basePierce + bonusPierce
-            if (newPierce > 5) newPierce = 5
+        var changed = false
 
-            if (currentLevelPierce != newPierce) {
-                if (newPierce > 0) meta.addEnchant(Enchantment.PIERCING, newPierce, true)
-                else meta.removeEnchant(Enchantment.PIERCING)
-                changed = true
-            }
-            if (bonusPierce > 0) pdc.set(rangerBonusPierceKey, PersistentDataType.INTEGER, bonusPierce)
-            else pdc.remove(rangerBonusPierceKey)
+        // A. 快速装填
+        val lastBonusCharge = pdc.get(rangerBonusChargeKey, PersistentDataType.INTEGER) ?: 0
 
-            // C. 多重射击
-            val addedPreviously = pdc.has(rangerAddedMultishotKey, PersistentDataType.BYTE)
-            val hasMultishotNow = meta.hasEnchant(Enchantment.MULTISHOT)
-            val baseHasMultishot = hasMultishotNow && !addedPreviously
-            val finalMultishot = baseHasMultishot || shouldAddMultishot
+        val currentLevelCharge = meta.getEnchantLevel(Enchantment.QUICK_CHARGE)
+        val baseCharge = max(0, currentLevelCharge - lastBonusCharge)
+        var newCharge = baseCharge + bonusCharge
+        if (newCharge > 5) newCharge = 5
 
-            if (hasMultishotNow != finalMultishot) {
-                if (finalMultishot) meta.addEnchant(Enchantment.MULTISHOT, 1, true)
-                else meta.removeEnchant(Enchantment.MULTISHOT)
-                changed = true
-            }
-            if (shouldAddMultishot && !baseHasMultishot) pdc.set(rangerAddedMultishotKey, PersistentDataType.BYTE, 1.toByte())
-            else pdc.remove(rangerAddedMultishotKey)
+        if (currentLevelCharge != newCharge) {
+            if (newCharge > 0) meta.addEnchant(Enchantment.QUICK_CHARGE, newCharge, true)
+            else meta.removeEnchant(Enchantment.QUICK_CHARGE)
+            changed = true
+        }
+        if (bonusCharge > 0) pdc.set(rangerBonusChargeKey, PersistentDataType.INTEGER, bonusCharge)
+        else pdc.remove(rangerBonusChargeKey)
 
-            // D. 应用与提示
-            if (changed) {
-                item.itemMeta = meta
+        // B. 穿透
+        val lastBonusPierce = pdc.get(rangerBonusPierceKey, PersistentDataType.INTEGER) ?: 0
 
-                if (bonusCharge > 0 && bonusCharge > lastBonusCharge) {
-                    player.playSound(player.location, Sound.BLOCK_NOTE_BLOCK_CHIME, 0.5f, 1.5f)
-                    if (bonusCharge == 2) {
-                        player.sendActionBar(Component.text("§a[游侠] 蓄力完成: 装填+2 | 穿透+2 | 多重射击").color(NamedTextColor.GREEN))
-                    } else {
-                        player.sendActionBar(Component.text("§a[游侠] 蓄力阶段: 装填+1 | 穿透+1").color(NamedTextColor.YELLOW))
-                    }
+        val currentLevelPierce = meta.getEnchantLevel(Enchantment.PIERCING)
+        val basePierce = max(0, currentLevelPierce - lastBonusPierce)
+        var newPierce = basePierce + bonusPierce
+        if (newPierce > 5) newPierce = 5
+
+        if (currentLevelPierce != newPierce) {
+            if (newPierce > 0) meta.addEnchant(Enchantment.PIERCING, newPierce, true)
+            else meta.removeEnchant(Enchantment.PIERCING)
+            changed = true
+        }
+        if (bonusPierce > 0) pdc.set(rangerBonusPierceKey, PersistentDataType.INTEGER, bonusPierce)
+        else pdc.remove(rangerBonusPierceKey)
+
+        // C. 多重射击
+        val addedPreviously = pdc.has(rangerAddedMultishotKey, PersistentDataType.BYTE)
+        val hasMultishotNow = meta.hasEnchant(Enchantment.MULTISHOT)
+        val baseHasMultishot = hasMultishotNow && !addedPreviously
+        val finalMultishot = baseHasMultishot || shouldAddMultishot
+
+        if (hasMultishotNow != finalMultishot) {
+            if (finalMultishot) meta.addEnchant(Enchantment.MULTISHOT, 1, true)
+            else meta.removeEnchant(Enchantment.MULTISHOT)
+            changed = true
+        }
+        if (shouldAddMultishot && !baseHasMultishot) pdc.set(rangerAddedMultishotKey, PersistentDataType.BYTE, 1.toByte())
+        else pdc.remove(rangerAddedMultishotKey)
+
+        // D. 应用与提示
+        if (changed) {
+            item.itemMeta = meta
+
+            if (bonusCharge > 0 && bonusCharge > lastBonusCharge) {
+                player.playSound(player.location, Sound.BLOCK_NOTE_BLOCK_CHIME, 0.5f, 1.5f)
+                if (bonusCharge == 2) {
+                    player.sendActionBar(Component.text("§a[游侠] 蓄力完成: 装填+2 | 穿透+2 | 多重射击").color(NamedTextColor.GREEN))
+                } else {
+                    player.sendActionBar(Component.text("§a[游侠] 蓄力阶段: 装填+1 | 穿透+1").color(NamedTextColor.YELLOW))
                 }
             }
         }

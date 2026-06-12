@@ -82,12 +82,22 @@ class ChangelogUI(private val plugin: PanlingBasic) : Listener {
     private fun buildEntryItem(entry: ChangelogManager.Entry): ItemStack {
         val item = ItemStack(Material.BLAZE_POWDER)
         val meta = item.itemMeta
-        meta.displayName(Component.text("§6§l${entry.dateStr}").decoration(TextDecoration.ITALIC, false))
+        val title = entry.title
 
-        val lore = entry.content.map {
-            Component.text(it).decoration(TextDecoration.ITALIC, false)
+        if (title != null) {
+            meta.displayName(Component.text("§6§l$title").decoration(TextDecoration.ITALIC, false))
+            val lore = mutableListOf<Component>()
+            lore.add(Component.text("§7${entry.dateStr}").decoration(TextDecoration.ITALIC, false))
+            lore.add(Component.empty())
+            lore.addAll(entry.content.map { Component.text(it).decoration(TextDecoration.ITALIC, false) })
+            meta.lore(lore)
+        } else {
+            meta.displayName(Component.text("§6§l${entry.dateStr}").decoration(TextDecoration.ITALIC, false))
+            val lore = entry.content.map {
+                Component.text(it).decoration(TextDecoration.ITALIC, false)
+            }
+            meta.lore(lore)
         }
-        meta.lore(lore)
         item.itemMeta = meta
         return item
     }
