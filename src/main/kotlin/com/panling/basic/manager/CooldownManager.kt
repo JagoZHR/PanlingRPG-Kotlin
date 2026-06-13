@@ -57,4 +57,24 @@ class CooldownManager {
     fun clearPlayer(player: Player) {
         cooldowns.remove(player.uniqueId)
     }
+
+    /**
+     * 减少所有技能冷却：将所有冷却中的技能剩余时间按比例缩减。
+     */
+    fun reduceAllCooldowns(player: Player, ratio: Double) {
+        val playerCooldowns = cooldowns[player.uniqueId] ?: return
+        val now = System.currentTimeMillis()
+        val toUpdate = HashMap<String, Long>()
+        val iter = playerCooldowns.entries.iterator()
+        while (iter.hasNext()) {
+            val (key, endTime) = iter.next()
+            val remaining = endTime - now
+            if (remaining <= 0) {
+                iter.remove()
+            } else {
+                toUpdate[key] = endTime - (remaining * ratio).toLong()
+            }
+        }
+        toUpdate.forEach { (key, newEnd) -> playerCooldowns[key] = newEnd }
+    }
 }

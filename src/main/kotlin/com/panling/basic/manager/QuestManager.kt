@@ -326,6 +326,14 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
         playerQuests.remove(event.player.uniqueId)
     }
 
+    /** 彻底清除玩家任务数据（换种族时调用） */
+    fun clearPlayerData(player: Player) {
+        savePlayerData(player) // 先保存（以防万一）
+        playerQuests.remove(player.uniqueId)
+        val file = getPlayerFile(player.uniqueId)
+        if (file.exists()) file.delete()
+    }
+
     private fun getPlayerFile(uuid: UUID): File {
         return File(plugin.dataFolder, "quest_data/$uuid.yml")
     }

@@ -1,6 +1,8 @@
 package com.panling.basic.skill
 
+import com.panling.basic.PanlingBasic
 import com.panling.basic.api.BasicKeys
+import com.panling.basic.api.BuffType
 import com.panling.basic.api.PlayerClass
 import com.panling.basic.api.SkillContext
 import com.panling.basic.api.SkillTrigger
@@ -76,6 +78,10 @@ abstract class AbstractSkill(
         val plugin = JavaPlugin.getProvidingPlugin(this::class.java)
         p.setMetadata("pl_casting_skill", FixedMetadataValue(plugin, true))
 
+        // 施法期间 +100 防御
+        val castTicks = (getCastTime(p) * 20).toLong()
+        PanlingBasic.instance.buffManager.addBuff(p, BuffType.DEFENSE_UP, castTicks, 100.0, false)
+
         val ticks = (getCastTime(p) * 20).toLong()
         val startLoc = p.location
 
@@ -114,6 +120,7 @@ abstract class AbstractSkill(
                     tick += 2
                 } else {
                     p.removeMetadata("pl_casting_skill", plugin)
+                    PanlingBasic.instance.buffManager.removeBuff(p, BuffType.DEFENSE_UP)
                     doCast(ctx, cdManager, dataManager)
                     this.cancel()
                 }
@@ -121,6 +128,7 @@ abstract class AbstractSkill(
 
             private fun interrupt(reason: String) {
                 p.removeMetadata("pl_casting_skill", plugin)
+                PanlingBasic.instance.buffManager.removeBuff(p, BuffType.DEFENSE_UP)
                 p.sendActionBar(Component.text(reason).color(NamedTextColor.RED))
                 p.playSound(p.location, Sound.BLOCK_GLASS_BREAK, 1f, 0.5f)
                 this.cancel()

@@ -15,7 +15,7 @@ class UnlockCommand(plugin: PanlingBasic) : SubCommand(plugin) {
 
     override fun perform(sender: CommandSender, args: Array<out String>) {
         if (args.size < 2) {
-            msg(sender, "§c用法: /plbasic unlock <玩家> <物品ID>")
+            msg(sender, "§c用法: /plbasic unlock <玩家> <物品ID|*>")
             return
         }
 
@@ -25,10 +25,15 @@ class UnlockCommand(plugin: PanlingBasic) : SubCommand(plugin) {
             return
         }
 
-        // 调用资格管理器解锁物品，使用属性访问语法
-        plugin.qualificationManager.unlockItem(target, args[1])
-
-        msg(sender, "§a已为 ${target.name} 解锁 ${args[1]}")
+        if (args[1] == "*") {
+            for (id in plugin.itemManager.itemIds) {
+                plugin.qualificationManager.unlockItem(target, id)
+            }
+            msg(sender, "§a已为 ${target.name} 解锁全部 ${plugin.itemManager.itemIds.size} 件物品")
+        } else {
+            plugin.qualificationManager.unlockItem(target, args[1])
+            msg(sender, "§a已为 ${target.name} 解锁 ${args[1]}")
+        }
         target.updateInventory()
     }
 

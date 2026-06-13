@@ -42,6 +42,7 @@ class EnterWorldHandler(private val plugin: PanlingBasic) {
 
         // ── 2. 清空所有数据 ──
         dataManager.clearAllPlayerData(player)
+        plugin.questManager.clearPlayerData(player)
 
         // ── 3. 恢复种族和职业 ──
         player.persistentDataContainer.set(BasicKeys.DATA_RACE, PersistentDataType.STRING, savedRace.name)

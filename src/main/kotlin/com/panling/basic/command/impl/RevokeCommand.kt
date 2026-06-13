@@ -14,7 +14,7 @@ class RevokeCommand(plugin: PanlingBasic) : SubCommand(plugin) {
 
     override fun perform(sender: CommandSender, args: Array<out String>) {
         if (args.size < 2) {
-            msg(sender, "§c用法: /plbasic revoke <玩家> <物品ID>")
+            msg(sender, "§c用法: /plbasic revoke <玩家> <物品ID|*>")
             return
         }
 
@@ -24,10 +24,15 @@ class RevokeCommand(plugin: PanlingBasic) : SubCommand(plugin) {
             return
         }
 
-        // 调用权限/资格管理器撤销物品使用资格
-        plugin.qualificationManager.revokeItem(target, args[1])
-
-        msg(sender, "§c已撤销 ${target.name} 的 ${args[1]} 使用资格")
+        if (args[1] == "*") {
+            for (id in plugin.itemManager.itemIds) {
+                plugin.qualificationManager.revokeItem(target, id)
+            }
+            msg(sender, "§c已撤销 ${target.name} 的全部物品使用资格")
+        } else {
+            plugin.qualificationManager.revokeItem(target, args[1])
+            msg(sender, "§c已撤销 ${target.name} 的 ${args[1]} 使用资格")
+        }
         target.updateInventory()
     }
 
