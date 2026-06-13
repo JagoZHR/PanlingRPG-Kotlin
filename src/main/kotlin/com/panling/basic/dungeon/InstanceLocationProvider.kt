@@ -9,7 +9,7 @@ object InstanceLocationProvider {
     private const val WORLD_NAME = "panling_instances"
 
     // [修改] 公开常量，供 Manager 计算使用
-    const val OFFSET_DISTANCE = 500
+    const val OFFSET_DISTANCE = 1000
 
     private val currentIndex = AtomicInteger(0)
 

@@ -3,9 +3,14 @@ package com.panling.basic.dungeon
 import org.bukkit.Location
 import org.bukkit.util.Vector
 
+data class PrePasteSchematic(
+    val name: String,
+    val offsetZ: Int
+)
+
 /**
  * 副本模板数据类
- * 仅存储副本的“物理属性”和“准入规则”
+ * 仅存储副本的"物理属性"和"准入规则"
  * * 具体的刷怪、BOSS、机制等逻辑全部由代码(DungeonPhase)控制
  */
 data class DungeonTemplate(
@@ -29,5 +34,8 @@ data class DungeonTemplate(
     val spectatorBuild: Boolean = false,
 
     // 准入条件：完成列表中任意一个任务即可进入（空列表 = 无限制）
-    val requiredQuests: List<String> = emptyList()
+    val requiredQuests: List<String> = emptyList(),
+
+    // 主 schematic 粘贴前，先粘贴的附加 schematic（在 tick 启动前完成，零卡顿）
+    val prePasteSchematics: List<PrePasteSchematic> = emptyList()
 )

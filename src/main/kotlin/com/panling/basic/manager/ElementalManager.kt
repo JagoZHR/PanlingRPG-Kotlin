@@ -180,7 +180,7 @@ class ElementalManager(
             // [特效] 熔岩滴落/火焰
             victim.world.spawnParticle(Particle.DRIPPING_LAVA, victim.location.add(0.0, 1.0, 0.0), 10, 0.3, 0.5, 0.3)
             victim.world.spawnParticle(Particle.FLAME, victim.location, 10, 0.3, 1.0, 0.3, 0.05)
-            broadcastReaction(attacker, victim, "§c[火克金] §f烈火熔金！§7$victimName §f护甲已被熔毁！")
+            broadcastReaction(attacker, victim, "§c[火克金] §f烈火熔金！§7$victimName §f护甲已被灼焰削弱！")
             return true
         }
 

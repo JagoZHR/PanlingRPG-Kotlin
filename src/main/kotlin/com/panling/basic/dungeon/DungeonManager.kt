@@ -154,15 +154,16 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
         }
 
         if (template.spectatorBuild) {
-            // 获取 schematic 高度，建观察平台
             val dims = SchematicManager.getDimensions(template.schematicName)
             val platformY = centerLocation.blockY + (dims?.second ?: 50) + 4
             val world = centerLocation.world!!
             val platformX = centerLocation.blockX
             val platformZ = centerLocation.blockZ
 
-            for (dx in -2..2) for (dz in -2..2) {
-                world.getBlockAt(platformX + dx, platformY, platformZ + dz).setType(org.bukkit.Material.GLASS, false)
+            // 5×5×5 玻璃笼子：地板 + 四面墙 + 天花板
+            for (dx in -2..2) for (dy in 0..5) for (dz in -2..2) {
+                val edge = kotlin.math.abs(dx) == 2 || kotlin.math.abs(dz) == 2 || dy == 0 || dy == 5
+                if (edge) world.getBlockAt(platformX + dx, platformY + dy, platformZ + dz).setType(org.bukkit.Material.GLASS, false)
             }
 
             val watchLoc = Location(world, platformX + 0.5, platformY + 1.0, platformZ + 0.5)
@@ -173,16 +174,34 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
                 ))
             }
 
-            SchematicManager.pasteAsync(plugin, centerLocation, template.schematicName) {
-                for (dx in -2..2) for (dz in -2..2) {
-                    world.getBlockAt(platformX + dx, platformY, platformZ + dz).setType(org.bukkit.Material.AIR, false)
+            pasteAll(centerLocation, template) {
+                for (dx in -2..2) for (dy in 0..5) for (dz in -2..2) {
+                    world.getBlockAt(platformX + dx, platformY + dy, platformZ + dz).setType(org.bukkit.Material.AIR, false)
                 }
                 createAndJoinInstance(targetPlayers, template, centerLocation, index)
             }
         } else {
-            SchematicManager.pasteAsync(plugin, centerLocation, template.schematicName) {
+            pasteAll(centerLocation, template) {
                 createAndJoinInstance(targetPlayers, template, centerLocation, index)
             }
+        }
+    }
+
+    /** 逐个粘贴：主 schematic + 所有 pre_paste，一个完成再下一个 */
+    private fun pasteAll(center: Location, template: DungeonTemplate, onAllDone: () -> Unit) {
+        val all = mutableListOf<Pair<String, Location>>()
+        all.add(template.schematicName to center)
+        for (pp in template.prePasteSchematics) {
+            all.add(pp.name to center.clone().add(0.0, 0.0, pp.offsetZ.toDouble()))
+        }
+        pasteNext(all, 0, onAllDone)
+    }
+
+    private fun pasteNext(all: List<Pair<String, Location>>, index: Int, onAllDone: () -> Unit) {
+        if (index >= all.size) { onAllDone(); return }
+        val (name, loc) = all[index]
+        SchematicManager.pasteAsync(plugin, loc, name) {
+            pasteNext(all, index + 1, onAllDone)
         }
     }
 
@@ -239,17 +258,14 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
         val instanceId = playerInstanceMap[player.uniqueId] ?: return
         val instance = activeInstances[instanceId] ?: return
 
-        // [核心修复] 必须先移除映射，再执行 teleport (instance.leave 会 teleport)
-        // 这样当 TP 事件触发时，isPlaying(player) 将返回 false，从而打破循环
         playerInstanceMap.remove(player.uniqueId)
 
-        // 这里的 leave 内部会执行 teleport
         instance.leave(player)
 
-        // 延时检查实例是否为空
-        Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-            if (instance.players.isEmpty()) removeInstance(instanceId)
-        }, 20L)
+        // 人走光 → 立刻关闭，不等 20 tick
+        if (instance.players.isEmpty()) {
+            removeInstance(instanceId)
+        }
     }
 
     /** 死亡时退出副本（不传送，让玩家正常复活） */
@@ -351,6 +367,14 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
             try {
                 val config = YamlConfiguration.loadConfiguration(file)
                 val id = file.nameWithoutExtension
+                val prePaste = mutableListOf<PrePasteSchematic>()
+                val ppList = config.getMapList("pre_paste")
+                for (map in ppList) {
+                    val name = map["schematic"]?.toString() ?: continue
+                    val offsetZ = (map["offset_z"] as? Number)?.toInt() ?: 0
+                    prePaste.add(PrePasteSchematic(name, offsetZ))
+                }
+
                 val template = DungeonTemplate(
                     id = id,
                     displayName = config.getString("display_name", id)!!,
@@ -359,11 +383,11 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
                     minPlayers = config.getInt("settings.min_players", 1),
                     maxPlayers = config.getInt("settings.max_players", 4),
                     timeLimit = config.getInt("settings.time_limit", 1800),
-                    // 注意：这个 spawnOffset 是相对于 centerLocation 的
                     spawnOffset = parseVector(config.getString("settings.spawn_loc", "0, 65, 0")!!),
                     exitLoc = parseLocation(config.getString("settings.exit_loc")),
                     spectatorBuild = config.getBoolean("spectator_build", false),
-                    requiredQuests = config.getStringList("required_quests").filter { it.isNotBlank() }
+                    requiredQuests = config.getStringList("required_quests").filter { it.isNotBlank() },
+                    prePasteSchematics = prePaste
                 )
                 templates[id] = template
             } catch (e: Exception) { e.printStackTrace() }
