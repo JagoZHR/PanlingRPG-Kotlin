@@ -26,7 +26,8 @@ object SchematicManager {
     private const val BASE_NANO_BUDGET = 15_000_000L
     private const val MIN_NANO_BUDGET = 1_000_000L
     private const val PAUSE_TPS_THRESHOLD = 12.0
-    private const val BATCH_SIZE = 5000
+    private const val BATCH_SIZE = 50000
+    private const val FLUSH_EVERY = 10  // 每 10 批（50万块）或 30 秒才刷
 
     fun init(dataFolder: File) {
         folder = File(dataFolder, "schematics")
@@ -51,7 +52,6 @@ object SchematicManager {
                 val dz = max.z() - min.z() + 1
                 val totalBlocks = dx * dy * dz
 
-                // 计算世界坐标范围
                 val origin = clipboard.origin
                 val minWorldX = center.blockX + (min.x() - origin.x())
                 val minWorldZ = center.blockZ + (min.z() - origin.z())
@@ -63,9 +63,8 @@ object SchematicManager {
                     return@runAsync
                 }
 
-                plugin.logger.info("[Schematic] $schematicName: ${dx}x${dy}x${dz} = ${totalBlocks} 方块, ~${totalBlocks / BATCH_SIZE + 1} 批")
+                plugin.logger.info("[Schematic] $schematicName: ${dx}x${dy}x${dz} = $totalBlocks 方块, ~${totalBlocks / BATCH_SIZE + 1} 批")
 
-                // 主线程：加载区块
                 Bukkit.getScheduler().runTask(plugin, Runnable {
                     val minChunkX = minWorldX shr 4
                     val maxChunkX = maxWorldX shr 4
@@ -147,6 +146,8 @@ object SchematicManager {
         } catch (e: Exception) { e.printStackTrace(); null }
     }
 
+    private data class BlockEntry(val x: Int, val y: Int, val z: Int, val state: com.sk89q.worldedit.world.block.BlockState)
+
     private class RenderTask(
         val plugin: PanlingBasic,
         val center: Location,
@@ -154,49 +155,71 @@ object SchematicManager {
         val tickets: List<Long>,
         val callback: () -> Unit
     ) {
-        private var index = 0
         private val world = checkNotNull(center.world)
         private val origin = clipboard.origin
         private val min = clipboard.region.minimumPoint
         private val max = clipboard.region.maximumPoint
         private val dz = max.z() - min.z() + 1
         private val dy = max.y() - min.y() + 1
-        private val totalBlocks = (max.x() - min.x() + 1) * dy * dz
         private val faweWorld = BukkitAdapter.adapt(world)
         private val editSession: EditSession =
-            WorldEdit.getInstance().newEditSession(faweWorld)
+            WorldEdit.getInstance().newEditSessionBuilder().world(faweWorld).fastMode(true).build()
+
+        // 生产者-消费者队列（后台线程 → 主线程）
+        private val queue = java.util.concurrent.LinkedBlockingQueue<BlockEntry>(BATCH_SIZE * 3)
+        @Volatile private var workerDone = false
+
+        private val workerThread = Thread({
+            try {
+                var idx = 0
+                val total = (max.x() - min.x() + 1) * dy * dz
+                while (idx < total) {
+                    val cz = min.z() + (idx % dz)
+                    val temp = idx / dz
+                    val cy = min.y() + (temp % dy)
+                    val cx = min.x() + (temp / dy)
+
+                    val blockState = clipboard.getBlock(cx, cy, cz)
+                    if (!blockState.blockType.material.isAir) {
+                        queue.put(BlockEntry(
+                            center.blockX + (cx - origin.x()),
+                            center.blockY + (cy - origin.y()),
+                            center.blockZ + (cz - origin.z()),
+                            blockState
+                        ))
+                    }
+                    idx++
+                }
+            } catch (_: InterruptedException) {}
+            workerDone = true
+        }, "FAWE-scan").apply { isDaemon = true; start() }
+
+        private var flushCounter = 0
+        private var lastFlushTime = System.currentTimeMillis()
 
         fun processBatch(): Boolean {
             var count = 0
-            while (index < totalBlocks && count < BATCH_SIZE) {
-                val z = min.z() + (index % dz)
-                val temp = index / dz
-                val y = min.y() + (temp % dy)
-                val x = min.x() + (temp / dy)
-
-                val blockState = clipboard.getBlock(x, y, z)
-                if (!blockState.blockType.material.isAir) {
-                    val relX = x - origin.x()
-                    val relY = y - origin.y()
-                    val relZ = z - origin.z()
-                    try {
-                        editSession.setBlock(
-                            center.blockX + relX,
-                            center.blockY + relY,
-                            center.blockZ + relZ,
-                            blockState
-                        )
-                    } catch (_: Exception) {}
-                }
-
-                index++
+            while (count < BATCH_SIZE) {
+                val entry = queue.poll() ?: break
+                try {
+                    editSession.setBlock(entry.x, entry.y, entry.z, entry.state)
+                } catch (_: Exception) {}
                 count++
             }
-            editSession.flushQueue()
-            return index >= totalBlocks
+            if (count > 0) {
+                flushCounter++
+                val sinceFlush = System.currentTimeMillis() - lastFlushTime
+                if (flushCounter >= FLUSH_EVERY || sinceFlush > 30_000 || (workerDone && queue.isEmpty())) {
+                    editSession.flushQueue()
+                    flushCounter = 0
+                    lastFlushTime = System.currentTimeMillis()
+                }
+            }
+            return workerDone && queue.isEmpty()
         }
 
         fun finish() {
+            editSession.flushQueue()
             editSession.close()
             if (world != null) {
                 for (packed in tickets) {
