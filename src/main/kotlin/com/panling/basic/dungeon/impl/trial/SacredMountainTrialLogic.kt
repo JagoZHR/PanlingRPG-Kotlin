@@ -17,8 +17,12 @@ import org.bukkit.entity.*
 import org.bukkit.event.EventHandler
 import org.bukkit.event.HandlerList
 import org.bukkit.event.Listener
+import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.event.entity.EntityDamageEvent
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
+import org.bukkit.NamespacedKey
+import org.bukkit.inventory.ItemStack
+import org.bukkit.persistence.PersistentDataType
 import java.util.UUID
 import kotlin.math.cos
 import kotlin.math.sin
@@ -61,7 +65,7 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
     override fun createRewardConfig(instance: DungeonInstance) = RewardConfig(title = "§6[圣山] 四圣终试通过！", autoReward = true, autoRewardDelay = 100L, money = 2000.0)
 
     private fun createJitanPhase(instance: DungeonInstance, beast: String, onReturn: () -> Unit): AbstractDungeonPhase =
-        when (beast) { "qinglong" -> QinglongJitanPhase(instance, beast, onReturn); else -> JitanPhase(instance, beast, onReturn) }
+        when (beast) { "qinglong" -> QinglongJitanPhase(instance, beast, onReturn); "zhuque" -> ZhuqueJitanPhase(instance, beast, onReturn); else -> JitanPhase(instance, beast, onReturn) }
 
     // ==================== MainPhase (unchanged) ====================
     inner class MainPhase(instance: DungeonInstance, private val clearedBeasts: MutableSet<String>) : AbstractDungeonPhase(plugin, instance) {
@@ -304,5 +308,224 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
         }
 
         override fun end() { HandlerList.unregisterAll(this); for (pt in points) { pt.entity?.let { if (it.isValid) it.remove() } }; points.clear(); areaMobs.forEach { if (it.isValid) it.remove() }; areaMobs.clear() }
+    }
+
+    // ==================== ZhuqueJitanPhase ====================
+    inner class ZhuqueJitanPhase(
+        instance: DungeonInstance, private val beast: String, private val onReturn: () -> Unit
+    ) : AbstractDungeonPhase(plugin, instance), Listener {
+
+        // 点位偏移 (相对 zhuquejitan center = Z+2000)
+        private val archerLocs = listOf(
+            Location(null, -12.5, 113.0, 3.7),
+            Location(null, -28.5, 116.0, -4.5),
+            Location(null, -48.5, 125.0, -17.6),
+            Location(null, -44.5, 131.0, -39.3),
+            Location(null, -56.5, 137.0, -44.6)
+        )
+        private val guardLocs = listOf(Location(null, 1.3, 149.0, -78.1), Location(null, 1.5, 149.0, -38.6))
+        private val bigGuardLoc = Location(null, -8.6, 149.0, -56.5)
+        private val sourceLoc = Location(null, 26.4, 153.0, -56.5)
+        private val targetLocs = listOf(Location(null, 16.5, 190.9, -56.3), Location(null, 23.3, 178.1, -24.3), Location(null, 23.5, 178.9, -88.3))
+
+        private val guards = mutableListOf<LivingEntity>()
+        private val archers = mutableListOf<LivingEntity>()
+        private var bigGuard: LivingEntity? = null
+        private var source: Blaze? = null
+        private var ghast: Ghast? = null
+        private var ghastTimer = 0
+        private var ghastHits = 0
+        private var ghastHitCooldown = 0
+        private var phase2 = false
+        private var isFinished = false
+        private val hasTrident = mutableSetOf<UUID>()
+        private lateinit var jitanCenter: Location
+        private var spawnDelay = 40
+
+        override fun start() {
+            jitanCenter = instance.centerLocation.clone().add(0.0, 0.0, 2000.0)
+            instance.broadcast("§c朱雀§e的幻境已然展开 —— 击败守卫，夺取三叉戟击落恶魂！")
+            instance.broadcastSound(Sound.ENTITY_ENDERMAN_TELEPORT)
+            for (uuid in instance.players) Bukkit.getPlayer(uuid)?.teleport(jitanCenter.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4))
+
+            // 弓箭手：骷髅，∞血，20攻，速0，可推动
+            for (loc in archerLocs) {
+                val sk = instance.world.spawnEntity(toWorld(loc), EntityType.SKELETON) as Skeleton
+                sk.customName(Component.text("§c朱雀弓手")); sk.isCustomNameVisible = true
+                sk.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 999999.0; sk.health = 999999.0
+                sk.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 20.0
+                sk.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.0
+                sk.lootTable = null; sk.isPersistent = true; sk.removeWhenFarAway = false
+                sk.equipment?.let { it.helmetDropChance = 0f; it.chestplateDropChance = 0f; it.leggingsDropChance = 0f; it.bootsDropChance = 0f }
+                // 可推动：不设置 KNOCKBACK_RESISTANCE
+                archers.add(sk)
+            }
+
+            // 守卫：僵尸，3000血，60攻，速略快，铁套+铁斧
+            for (loc in guardLocs) {
+                val z = instance.world.spawnEntity(toWorld(loc), EntityType.ZOMBIE) as Zombie
+                z.customName(Component.text("§c朱雀守卫")); z.isCustomNameVisible = true; z.setBaby(false)
+                z.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 3000.0; z.health = 3000.0
+                z.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 60.0
+                z.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.28  // 普通僵尸 0.23
+                z.lootTable = null; z.isPersistent = true; z.removeWhenFarAway = false
+                z.equipment?.let { it.helmet = ItemStack(Material.IRON_HELMET); it.chestplate = ItemStack(Material.IRON_CHESTPLATE); it.leggings = ItemStack(Material.IRON_LEGGINGS); it.boots = ItemStack(Material.IRON_BOOTS); it.setItemInMainHand(ItemStack(Material.IRON_AXE)); it.helmetDropChance = 0f; it.chestplateDropChance = 0f; it.leggingsDropChance = 0f; it.bootsDropChance = 0f; it.itemInMainHandDropChance = 0f }
+                guards.add(z)
+            }
+
+            // 大守卫：卫道士，5000血，80攻，速略慢
+            val v = instance.world.spawnEntity(toWorld(bigGuardLoc), EntityType.VINDICATOR) as Vindicator
+            v.customName(Component.text("§c朱雀统领")); v.isCustomNameVisible = true
+            v.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 5000.0; v.health = 5000.0
+            v.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 80.0
+            v.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.28  // 普通 0.35
+            v.lootTable = null; v.isPersistent = true; v.removeWhenFarAway = false
+            bigGuard = v
+
+            Bukkit.getPluginManager().registerEvents(this, plugin)
+        }
+
+        private fun toWorld(loc: Location) = Location(instance.world,
+            jitanCenter.x + loc.x, loc.y, jitanCenter.z + loc.z)
+
+        override fun onTick() {
+            if (isFinished) return
+
+            // 坠落检测：Y<90 → 免摔伤 + tp起点 + 扣50血
+            for (uuid in instance.players) {
+                val p = Bukkit.getPlayer(uuid) ?: continue
+                if (p.location.y < 90.0 && !p.isDead) {
+                    p.fallDistance = 0f
+                    p.damage(50.0)
+                    p.teleport(jitanCenter.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4))
+                    p.sendMessage("§c你坠入了熔岩深渊！")
+                }
+            }
+
+            if (!phase2) {
+                // 前 40 tick 不判断——避免 spawn 竞态
+                if (spawnDelay > 0) { spawnDelay--; return }
+                // 检查守卫是否全死
+                val guardsAlive = guards.any { it.isValid && !it.isDead }
+                val bigAlive = bigGuard != null && bigGuard!!.isValid && !bigGuard!!.isDead
+                if (!guardsAlive && !bigAlive) {
+                    phase2 = true
+                    instance.broadcast("§c守卫已全部倒下！§e烈焰之源显现，夺取三叉戟击落恶魂！")
+                    instance.broadcastSound(Sound.ENTITY_WITHER_SPAWN)
+                    // spawn source blaze
+                    source = instance.world.spawnEntity(toWorld(sourceLoc), EntityType.BLAZE) as Blaze
+                    source!!.customName(Component.text("§c烈焰之源")); source!!.isCustomNameVisible = true
+                    source!!.setAI(false); source!!.isSilent = true
+                    source!!.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 999999.0; source!!.health = 999999.0
+                    source!!.getAttribute(Attribute.KNOCKBACK_RESISTANCE)?.baseValue = 1.0
+                    source!!.lootTable = null; source!!.isPersistent = true; source!!.removeWhenFarAway = false
+                    // spawn ghast
+                    spawnGhast()
+                }
+            } else {
+                // 恶魂瞬移计时
+                ghastTimer--
+                if (ghastHitCooldown > 0) ghastHitCooldown--
+                if (ghastTimer <= 0 && ghast != null && ghast!!.isValid) {
+                    spawnGhast()
+                }
+            }
+        }
+
+        private fun spawnGhast() {
+            ghast?.let { if (it.isValid) it.remove() }
+            moveGhast()
+        }
+
+        private fun moveGhast() {
+            val current = ghast?.location
+            val others = targetLocs.filter { tl ->
+                val wl = toWorld(tl); current == null || wl.distanceSquared(current) > 1.0
+            }
+            val target = if (others.isNotEmpty()) others.random() else targetLocs.random()
+            val wLoc = toWorld(target)
+            if (ghast == null || !ghast!!.isValid) {
+                ghast = instance.world.spawnEntity(wLoc, EntityType.GHAST) as Ghast
+                ghast!!.customName(Component.text("§c朱雀幻影")); ghast!!.isCustomNameVisible = true
+                ghast!!.setAI(false); ghast!!.isSilent = true
+                ghast!!.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 999999.0; ghast!!.health = 999999.0
+                try { ghast!!.getAttribute(Attribute.SCALE)?.baseValue = 2.0 } catch (_: Exception) {}
+                ghast!!.lootTable = null; ghast!!.isPersistent = true; ghast!!.removeWhenFarAway = false
+            } else {
+                ghast!!.teleport(wLoc)
+            }
+            ghastTimer = 100
+        }
+
+        @EventHandler override fun onDamage(event: EntityDamageByEntityEvent) {
+            if (isFinished) return
+            val damager = event.damager
+
+            // 烈焰之源被攻击 → 给三叉戟
+            if (event.entity == source && damager is Player && instance.players.contains(damager.uniqueId)) {
+                if (!hasTrident.contains(damager.uniqueId)) {
+                    val trident = ItemStack(Material.TRIDENT)
+                    val meta = trident.itemMeta; meta.persistentDataContainer.set(NamespacedKey(plugin, "zhuque_trident"), PersistentDataType.BYTE, 1)
+                    meta.displayName(Component.text("§c朱雀之戟"))
+                    trident.itemMeta = meta
+                    damager.inventory.addItem(trident)
+                    hasTrident.add(damager.uniqueId)
+                    damager.sendMessage("§c你获得了一把 §e朱雀之戟§c！用它击落恶魂！")
+                }
+            }
+
+            // 三叉戟命中恶魂 (通过投掷物检测)
+            if (event.entity == ghast && ghastHitCooldown <= 0) {
+                val shooter = when (damager) {
+                    is Player -> if (hasTrident.contains(damager.uniqueId)) damager else null
+                    is org.bukkit.entity.Projectile -> damager.shooter as? Player
+                    else -> null
+                }
+                if (shooter != null && hasTrident.contains(shooter.uniqueId)) {
+                    ghastHits++; ghastHitCooldown = 20
+                    instance.broadcast("§e朱雀之戟命中恶魂！($ghastHits/3)")
+                    instance.broadcastSound(Sound.ENTITY_GHAST_HURT)
+                    if (ghastHits >= 3) { win(); return }
+                    // 命中后立刻闪现到另外两个点之一
+                    moveGhast()
+                }
+            }
+        }
+
+        private fun win() {
+            isFinished = true
+            instance.broadcast("§c§l恶魂已被击落！朱雀幻境破解！")
+            instance.broadcastSound(Sound.UI_TOAST_CHALLENGE_COMPLETE)
+            // 清除所有朱雀三叉戟
+            for (uuid in instance.players) {
+                val p = Bukkit.getPlayer(uuid) ?: continue
+                p.inventory.forEachIndexed { i, item ->
+                    if (item != null && item.type == Material.TRIDENT && item.itemMeta.persistentDataContainer.has(NamespacedKey(plugin, "zhuque_trident"), PersistentDataType.BYTE)) {
+                        p.inventory.setItem(i, null)
+                    }
+                }
+            }
+            val mc = instance.centerLocation.clone()
+            for (uuid in instance.players) Bukkit.getPlayer(uuid)?.teleport(mc.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4))
+            Bukkit.getScheduler().runTaskLater(plugin, Runnable { onReturn() }, 40L)
+        }
+
+        override fun end() {
+            HandlerList.unregisterAll(this)
+            archers.forEach { if (it.isValid) it.remove() }; archers.clear()
+            guards.forEach { if (it.isValid) it.remove() }; guards.clear()
+            bigGuard?.let { if (it.isValid) it.remove() }
+            source?.let { if (it.isValid) it.remove() }
+            ghast?.let { if (it.isValid) it.remove() }
+            // 清除残留三叉戟
+            for (uuid in instance.players) {
+                val p = Bukkit.getPlayer(uuid) ?: continue
+                p.inventory.forEachIndexed { i, item ->
+                    if (item != null && item.type == Material.TRIDENT && item.itemMeta.persistentDataContainer.has(NamespacedKey(plugin, "zhuque_trident"), PersistentDataType.BYTE)) {
+                        p.inventory.setItem(i, null)
+                    }
+                }
+            }
+        }
     }
 }
