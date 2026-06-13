@@ -86,6 +86,12 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
     fun startDungeon(leader: Player, templateId: String) {
         val template = templates[templateId] ?: return
 
+        // 0. 等级检查
+        if (leader.level < template.minLevel) {
+            leader.sendMessage("§c你的等级不足！需要 Lv.${template.minLevel} 才能进入此副本。")
+            return
+        }
+
         // 1. 获取玩家的队伍状态
         val party = plugin.partyManager.getParty(leader)
         val targetPlayers = mutableListOf<Player>()
@@ -135,9 +141,48 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
         val (centerLocation, index) = InstanceLocationProvider.getNextLocation()
         leader.sendMessage("§e[系统] 正在构建副本，请稍候...")
 
-        // 异步加载区块并在回调中带入组装好的 targetPlayers
-        SchematicManager.pasteAsync(plugin, centerLocation, template.schematicName) {
-            createAndJoinInstance(targetPlayers, template, centerLocation, index)
+        // 准入检查：已接取或已完成指定前置任务（任意一个）
+        if (template.requiredQuests.isNotEmpty()) {
+            val qm = plugin.questManager
+            val hasAny = template.requiredQuests.any {
+                qm.hasCompleted(leader, it) || qm.getActiveProgress(leader, it) != null
+            }
+            if (!hasAny) {
+                leader.sendMessage("§c你还没有完成进入此副本所需的前置任务！")
+                return
+            }
+        }
+
+        if (template.spectatorBuild) {
+            // 获取 schematic 高度，建观察平台
+            val dims = SchematicManager.getDimensions(template.schematicName)
+            val platformY = centerLocation.blockY + (dims?.second ?: 50) + 4
+            val world = centerLocation.world!!
+            val platformX = centerLocation.blockX
+            val platformZ = centerLocation.blockZ
+
+            for (dx in -2..2) for (dz in -2..2) {
+                world.getBlockAt(platformX + dx, platformY, platformZ + dz).setType(org.bukkit.Material.GLASS, false)
+            }
+
+            val watchLoc = Location(world, platformX + 0.5, platformY + 1.0, platformZ + 0.5)
+            for (p in targetPlayers) {
+                p.teleport(watchLoc)
+                p.addPotionEffect(org.bukkit.potion.PotionEffect(
+                    org.bukkit.potion.PotionEffectType.DARKNESS, 60, 0, false, false
+                ))
+            }
+
+            SchematicManager.pasteAsync(plugin, centerLocation, template.schematicName) {
+                for (dx in -2..2) for (dz in -2..2) {
+                    world.getBlockAt(platformX + dx, platformY, platformZ + dz).setType(org.bukkit.Material.AIR, false)
+                }
+                createAndJoinInstance(targetPlayers, template, centerLocation, index)
+            }
+        } else {
+            SchematicManager.pasteAsync(plugin, centerLocation, template.schematicName) {
+                createAndJoinInstance(targetPlayers, template, centerLocation, index)
+            }
         }
     }
 
@@ -316,7 +361,9 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
                     timeLimit = config.getInt("settings.time_limit", 1800),
                     // 注意：这个 spawnOffset 是相对于 centerLocation 的
                     spawnOffset = parseVector(config.getString("settings.spawn_loc", "0, 65, 0")!!),
-                    exitLoc = parseLocation(config.getString("settings.exit_loc"))
+                    exitLoc = parseLocation(config.getString("settings.exit_loc")),
+                    spectatorBuild = config.getBoolean("spectator_build", false),
+                    requiredQuests = config.getStringList("required_quests").filter { it.isNotBlank() }
                 )
                 templates[id] = template
             } catch (e: Exception) { e.printStackTrace() }

@@ -132,6 +132,28 @@ object SchematicManager {
         }.runTaskTimer(plugin, 0L, 1L)
     }
 
+    /** 获取 schematic 的尺寸（只读 header，O(1)），不解析全部方块 */
+    fun getDimensions(name: String): Triple<Int, Int, Int>? {
+        cache[name]?.let { clip ->
+            val min = clip.region.minimumPoint
+            val max = clip.region.maximumPoint
+            return Triple(max.x() - min.x() + 1, max.y() - min.y() + 1, max.z() - min.z() + 1)
+        }
+        // 未缓存则加载
+        val file = File(folder, "$name.schem")
+        if (!file.exists()) return null
+        return try {
+            val format = ClipboardFormats.findByFile(file) ?: return null
+            format.getReader(file.inputStream()).use { reader ->
+                val clip = reader.read()
+                cache[name] = clip
+                val min = clip.region.minimumPoint
+                val max = clip.region.maximumPoint
+                Triple(max.x() - min.x() + 1, max.y() - min.y() + 1, max.z() - min.z() + 1)
+            }
+        } catch (e: Exception) { null }
+    }
+
     private fun get(name: String): Clipboard? {
         if (cache.containsKey(name)) return cache[name]
         val file = File(folder, "$name.schem")

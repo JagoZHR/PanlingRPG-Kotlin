@@ -107,57 +107,71 @@ class NpcManager(private val plugin: PanlingBasic) : Listener, Reloadable {
     // === 2. 内部逻辑 ===
 
     private fun loadConfig() {
-        val file = File(plugin.dataFolder, "npcs.yml")
-        if (!file.exists()) {
-            plugin.saveResource("npcs.yml", false)
+        val folder = File(plugin.dataFolder, "npcs")
+
+        // 向后兼容：旧版 npcs.yml 自动迁移
+        val legacyFile = File(plugin.dataFolder, "npcs.yml")
+        if (legacyFile.exists() && !folder.exists()) {
+            folder.mkdirs()
+            legacyFile.copyTo(File(folder, "_legacy.yml"), true)
+            legacyFile.delete()
+            plugin.logger.info("[NpcManager] 已将旧版 npcs.yml 迁移到 npcs/ 文件夹")
         }
-        val config = YamlConfiguration.loadConfiguration(file)
 
-        for (id in config.getKeys(false)) {
-            val sec = config.getConfigurationSection(id) ?: continue
+        if (!folder.exists()) {
+            folder.mkdirs()
+            return
+        }
 
-            val name = sec.getString("name", "NPC")!!
-            val typeStr = sec.getString("type", "VILLAGER")!!
-            val type = try {
-                EntityType.valueOf(typeStr)
-            } catch (e: IllegalArgumentException) {
-                EntityType.VILLAGER
-            }
+        folder.walk()
+            .filter { it.isFile && it.name.endsWith(".yml") }
+            .forEach { file ->
+                val config = YamlConfiguration.loadConfiguration(file)
 
-            val locStr = sec.getString("location")
-            val loc = parseLoc(locStr)
+                for (id in config.getKeys(false)) {
+                    val sec = config.getConfigurationSection(id) ?: continue
 
-            if (loc != null) {
-                val npc = Npc(id, name, loc, type)
+                    val name = sec.getString("name", "NPC")!!
+                    val typeStr = sec.getString("type", "VILLAGER")!!
+                    val type = try {
+                        EntityType.valueOf(typeStr)
+                    } catch (e: IllegalArgumentException) {
+                        EntityType.VILLAGER
+                    }
 
-                // [NEW] 读取自定义对话
-                if (sec.contains("dialog")) {
-                    npc.dialogText = sec.getString("dialog")!!.replace("&", "§")
-                }
+                    val locStr = sec.getString("location")
+                    val loc = parseLoc(locStr)
 
-                // [NEW] 读取额外数据 (比如 shop_id)
-                if (sec.contains("data")) {
-                    val dataSec = sec.getConfigurationSection("data")
-                    if (dataSec != null) {
-                        for (key in dataSec.getKeys(false)) {
-                            npc.setData(key, dataSec.get(key)!!)
+                    if (loc != null) {
+                        val npc = Npc(id, name, loc, type)
+
+                        if (sec.contains("dialog")) {
+                            npc.dialogText = sec.getString("dialog")!!.replace("&", "§")
                         }
+
+                        if (sec.contains("data")) {
+                            val dataSec = sec.getConfigurationSection("data")
+                            if (dataSec != null) {
+                                for (key in dataSec.getKeys(false)) {
+                                    npc.setData(key, dataSec.get(key)!!)
+                                }
+                            }
+                        }
+
+                        if (sec.contains("appearance")) {
+                            val appearSec = sec.getConfigurationSection("appearance")
+                            if (appearSec != null) {
+                                for (key in appearSec.getKeys(false)) {
+                                    npc.setData("appearance.$key", appearSec.get(key)!!)
+                                }
+                            }
+                        }
+
+                        npcMap[id] = npc
                     }
                 }
-
-                // [NEW] 读取外观配置 (职业、皮肤、装备)
-                if (sec.contains("appearance")) {
-                    val appearSec = sec.getConfigurationSection("appearance")
-                    if (appearSec != null) {
-                        for (key in appearSec.getKeys(false)) {
-                            npc.setData("appearance.$key", appearSec.get(key)!!)
-                        }
-                    }
-                }
-
-                npcMap[id] = npc
             }
-        }
+
         plugin.logger.info("已加载 ${npcMap.size} 个 NPC 配置。")
         spawnAll()
     }

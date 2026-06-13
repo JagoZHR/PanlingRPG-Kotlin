@@ -22,8 +22,6 @@ import org.bukkit.scheduler.BukkitRunnable
 class EarthAttackT3Strategy(private val plugin: PanlingBasic) : MageSkillStrategy {
 
     override val castTime: Double = 1.0
-
-    // [新增] 显式声明：我是PVE技能，禁止攻击玩家
     override val canHitPlayers: Boolean = false
 
     override fun cast(ctx: SkillContext): Boolean {
@@ -38,17 +36,18 @@ class EarthAttackT3Strategy(private val plugin: PanlingBasic) : MageSkillStrateg
         rock.persistentDataContainer.apply {
             set(NamespacedKey(plugin, "skill_arrow_id"), PersistentDataType.STRING, "MAGE_EARTH")
             set(BasicKeys.SKILL_ELEMENT, PersistentDataType.STRING, ElementalManager.Element.EARTH.name)
-            // 标记为物理伤害 (保留原逻辑)
             set(BasicKeys.IS_PHYSICAL_SKILL, PersistentDataType.BYTE, 1.toByte())
 
             val mult = if (tier >= 4) 1.5 else 1.2
             set(BasicKeys.ARROW_DAMAGE_STORE, PersistentDataType.DOUBLE, ctx.power * mult)
         }
 
-        // [新增] 将策略规则(canHitPlayers=false) 绑定到投射物
         CombatUtil.bindStrategy(rock, this)
 
         p.playSound(p.location, Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, 0.8f, 0.5f)
+
+        // 预计算（不可变，lambda 可安全捕获）
+        val damage = ctx.power * (if (tier >= 4) 1.5 else 1.2)
 
         object : BukkitRunnable() {
             override fun run() {
@@ -57,14 +56,24 @@ class EarthAttackT3Strategy(private val plugin: PanlingBasic) : MageSkillStrateg
                     return
                 }
 
-                // [NEW] 扩展命中判定: 雪球默认命中约0.5格, 扩展到1.0格
                 val nearby = rock.world.getNearbyEntities(rock.location, 1.0, 1.0, 1.0)
                     .filterIsInstance<LivingEntity>()
                     .filter { it != p }
                     .filter { it !is Player || canHitPlayers }
                 if (nearby.isNotEmpty()) {
                     val victim = nearby.first()
-                    victim.damage(0.01, rock)
+
+                    // [修复] 改为直接触发元素反应 + 技能伤害
+                    if (plugin.mobManager.canAttack(p, victim)) {
+                        plugin.elementalManager.handleElementHit(p, victim, ElementalManager.Element.EARTH, damage)
+                        // 土系物理伤害
+                        MageUtil.dealSkillDamage(p, victim, damage, false)
+                        // 击退（原 onAttack 副作用）
+                        val knock = victim.location.toVector().subtract(p.location.toVector()).normalize()
+                        knock.setY(0.2).multiply(0.5)
+                        victim.velocity = victim.velocity.add(knock)
+                    }
+
                     rock.remove()
                     this.cancel()
                     return
@@ -82,12 +91,10 @@ class EarthAttackT3Strategy(private val plugin: PanlingBasic) : MageSkillStrateg
     }
 
     override fun onAttack(event: EntityDamageByEntityEvent, ctx: SkillContext) {
-        // [安全拦截] 防止击退队友
         if (event.entity is Player && !this.canHitPlayers) return
 
         val victim = event.entity as? LivingEntity ?: return
 
-        // 土系特色：击退
         val knock = victim.location.toVector().subtract(ctx.player.location.toVector()).normalize()
         knock.setY(0.2).multiply(0.5)
         victim.velocity = victim.velocity.add(knock)

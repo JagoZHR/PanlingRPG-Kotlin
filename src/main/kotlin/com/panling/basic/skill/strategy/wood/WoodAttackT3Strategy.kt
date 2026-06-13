@@ -25,7 +25,6 @@ class WoodAttackT3Strategy(private val plugin: PanlingBasic) : MageSkillStrategy
 
     override val castTime: Double = 0.5
 
-    // [新增] 显式声明：我是PVE技能，禁止攻击玩家
     override val canHitPlayers: Boolean = false
 
     override fun cast(ctx: SkillContext): Boolean {
@@ -39,20 +38,20 @@ class WoodAttackT3Strategy(private val plugin: PanlingBasic) : MageSkillStrategy
         }
 
         proj.persistentDataContainer.apply {
-            // 这里的 ID 必须填父技能的 ID，以便 Listener 回调
             set(NamespacedKey(plugin, "skill_arrow_id"), PersistentDataType.STRING, "MAGE_WOOD")
-            // [保留] 您的 ElementalManager 逻辑完整保留
             set(BasicKeys.SKILL_ELEMENT, PersistentDataType.STRING, ElementalManager.Element.WOOD.name)
 
             val mult = if (tier >= 4) 0.8 else 0.6
             set(BasicKeys.ARROW_DAMAGE_STORE, PersistentDataType.DOUBLE, ctx.power * mult)
         }
 
-        // [新增] 将策略规则(canHitPlayers=false) 绑定到投射物
-        // CombatUtil 只会打上禁止PVP的标签，不会覆盖上面的任何设置
         CombatUtil.bindStrategy(proj, this)
 
         p.playSound(p.location, Sound.ENTITY_SNOWBALL_THROW, 1f, 0.5f)
+
+        // 预计算伤害和时长（不可变，lambda 可安全捕获）
+        val damage = ctx.power * (if (tier >= 4) 0.8 else 0.6)
+        val poisonDuration = if (tier >= 4) 140 else 100
 
         object : BukkitRunnable() {
             override fun run() {
@@ -61,14 +60,22 @@ class WoodAttackT3Strategy(private val plugin: PanlingBasic) : MageSkillStrategy
                     return
                 }
 
-                // [NEW] 扩展命中判定: 雪球默认命中约0.5格, 扩展到1.0格
+                // 扩展命中判定
                 val nearby = proj.world.getNearbyEntities(proj.location, 1.0, 1.0, 1.0)
                     .filterIsInstance<LivingEntity>()
                     .filter { it != p }
                     .filter { it !is Player || canHitPlayers }
                 if (nearby.isNotEmpty()) {
                     val victim = nearby.first()
-                    victim.damage(0.01, proj)
+
+                    // [修复] 改为直接触发元素反应 + 技能伤害，不走 combat listener 射弹物路径
+                    if (plugin.mobManager.canAttack(p, victim)) {
+                        plugin.elementalManager.handleElementHit(p, victim, ElementalManager.Element.WOOD, damage)
+                        MageUtil.dealSkillDamage(p, victim, damage, true)
+                        // 施加中毒（原 onAttack 副作用）
+                        victim.addPotionEffect(PotionEffect(PotionEffectType.POISON, poisonDuration, 1))
+                    }
+
                     proj.remove()
                     this.cancel()
                     return
@@ -87,12 +94,10 @@ class WoodAttackT3Strategy(private val plugin: PanlingBasic) : MageSkillStrategy
     override fun onAttack(event: EntityDamageByEntityEvent, ctx: SkillContext) {
         val victim = event.entity
         if (victim is LivingEntity) {
-            // [可选安全拦截] 如果是非投射物伤害，这里也是一道防线
             if (victim is Player && !this.canHitPlayers) return
 
             val tier = MageUtil.getTierValue(ctx.player)
             val duration = if (tier >= 4) 140 else 100
-            // 施加中毒
             victim.addPotionEffect(PotionEffect(PotionEffectType.POISON, duration, 1))
         }
     }

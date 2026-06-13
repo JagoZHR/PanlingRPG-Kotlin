@@ -143,7 +143,14 @@ abstract class AbstractSkill(
                 val cdKey = getCooldownKey(ctx)
                 val cdMillis = calculateCooldown(ctx, dataManager)
                 cdManager.setCooldown(ctx.player, cdKey, cdMillis)
-                ctx.player.sendActionBar(Component.text("§a[战斗] 释放技能: $name").color(NamedTextColor.GREEN))
+                // 释放提示：聊天框广播给周围 5 格玩家，不覆盖 actionbar
+                val msg = Component.text("§a[战斗] §f${ctx.player.name} 释放了 §e$name")
+                    .color(NamedTextColor.GREEN)
+                for (p in ctx.player.world.players) {
+                    if (p.location.distanceSquared(ctx.player.location) < 25.0) {
+                        p.sendMessage(msg)
+                    }
+                }
             }
             return true
         }
@@ -277,12 +284,20 @@ abstract class AbstractSkill(
             if (dataManager.getElementPoints(ctx.player) >= elementVal) {
                 if (!isConserved) {
                     dataManager.takeElementPoints(ctx.player, elementVal.toLong())
+                    val remaining = dataManager.getElementPoints(ctx.player)
+                    ctx.player.sendActionBar(Component.text("§b[灵力] §f消耗: $elementVal  §7剩余: $remaining")
+                        .color(NamedTextColor.AQUA))
                 } else {
-                    ctx.player.sendActionBar(Component.text("§a[灵力] 元素保留生效！").color(NamedTextColor.GREEN))
+                    val remaining = dataManager.getElementPoints(ctx.player)
+                    ctx.player.sendActionBar(Component.text("§a[灵力] 元素保留生效！ §7剩余: $remaining")
+                        .color(NamedTextColor.GREEN))
                 }
             } else {
                 if (!isConserved) {
                     sourceItem.subtract(1)
+                    val remaining = dataManager.getElementPoints(ctx.player)
+                    ctx.player.sendActionBar(Component.text("§b[灵力] §f媒介不足，消耗材料 §7剩余: $remaining")
+                        .color(NamedTextColor.AQUA))
                 } else {
                     ctx.player.sendActionBar(Component.text("§a[灵力] 元素保留生效！").color(NamedTextColor.GREEN))
                 }
@@ -290,9 +305,13 @@ abstract class AbstractSkill(
         } else if (skillCost > 0) {
             if (!isConserved) {
                 dataManager.takeElementPoints(ctx.player, skillCost.toLong())
-                ctx.player.sendActionBar(Component.text("§b[法宝] 消耗灵力: $skillCost").color(NamedTextColor.AQUA))
+                val remaining = dataManager.getElementPoints(ctx.player)
+                ctx.player.sendActionBar(Component.text("§b[法宝] §f消耗灵力: $skillCost  §7剩余: $remaining")
+                    .color(NamedTextColor.AQUA))
             } else {
-                ctx.player.sendActionBar(Component.text("§a[法宝] 灵力保留生效！").color(NamedTextColor.GREEN))
+                val remaining = dataManager.getElementPoints(ctx.player)
+                ctx.player.sendActionBar(Component.text("§a[法宝] 灵力保留生效！ §7剩余: $remaining")
+                    .color(NamedTextColor.GREEN))
             }
         }
     }

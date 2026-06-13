@@ -13,6 +13,10 @@ class GiveQuestAction(private val questId: String) : NpcAction {
         val qm = plugin.questManager
         val quest = qm.getQuest(questId) ?: return
 
+        // 防连点：对话中不允许重复触发
+        if (player.hasMetadata("pl_dialog_active")) return
+        player.setMetadata("pl_dialog_active", org.bukkit.metadata.FixedMetadataValue(plugin, true))
+
         // 1. 检查是否可接取
         if (qm.isQuestAvailable(player, quest)) {
             val dialogLines = quest.acceptDialog
@@ -20,6 +24,7 @@ class GiveQuestAction(private val questId: String) : NpcAction {
             if (dialogLines.isEmpty()) {
                 // 无自定义对话：直接接取
                 qm.acceptQuest(player, questId)
+                player.removeMetadata("pl_dialog_active", plugin)
                 tryAutoCompleteAndChain(player, npc, plugin, qm)
             } else {
                 // 多轮对话
@@ -34,10 +39,12 @@ class GiveQuestAction(private val questId: String) : NpcAction {
                 // 最后一行后 2 秒，正式接取任务
                 Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                     qm.acceptQuest(player, questId)
+                    player.removeMetadata("pl_dialog_active", plugin)
                     tryAutoCompleteAndChain(player, npc, plugin, qm)
                 }, delay)
             }
         } else {
+            player.removeMetadata("pl_dialog_active", plugin)
             // 不可接取：根据状态给不同回复
             if (qm.hasCompleted(player, questId)) {
                 player.sendMessage("§e[${npc.name}] §7这件事你已经做过了，不用再来找我了。")

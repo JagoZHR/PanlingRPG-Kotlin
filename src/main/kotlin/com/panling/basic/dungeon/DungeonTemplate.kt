@@ -23,5 +23,11 @@ data class DungeonTemplate(
 
     // 关键坐标
     val spawnOffset: Vector, // 进本出生点 (相对于 Schematic 原点)
-    val exitLoc: Location?   // 离开/结束后传送的位置
+    val exitLoc: Location?,   // 离开/结束后传送的位置
+
+    // 是否让玩家站在高空玻璃平台围观副本生成（室外副本适用）
+    val spectatorBuild: Boolean = false,
+
+    // 准入条件：完成列表中任意一个任务即可进入（空列表 = 无限制）
+    val requiredQuests: List<String> = emptyList()
 )
