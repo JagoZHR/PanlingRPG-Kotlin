@@ -1,14 +1,14 @@
 package com.panling.basic.dungeon
 
 import com.panling.basic.PanlingBasic
+import com.sk89q.worldedit.EditSession
+import com.sk89q.worldedit.WorldEdit
 import com.sk89q.worldedit.bukkit.BukkitAdapter
 import com.sk89q.worldedit.extent.clipboard.Clipboard
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats
-import com.sk89q.worldedit.math.BlockVector3
 import org.bukkit.Bukkit
 import org.bukkit.Chunk
 import org.bukkit.Location
-import org.bukkit.Material
 import org.bukkit.scheduler.BukkitRunnable
 import java.io.File
 import java.util.concurrent.CompletableFuture
@@ -26,6 +26,7 @@ object SchematicManager {
     private const val BASE_NANO_BUDGET = 15_000_000L
     private const val MIN_NANO_BUDGET = 1_000_000L
     private const val PAUSE_TPS_THRESHOLD = 12.0
+    private const val BATCH_SIZE = 5000
 
     fun init(dataFolder: File) {
         folder = File(dataFolder, "schematics")
@@ -35,7 +36,6 @@ object SchematicManager {
     fun pasteAsync(plugin: PanlingBasic, center: Location, schematicName: String, onComplete: () -> Unit) {
         val world = center.world!!
 
-        // 1. 异步：解析文件 & 预计算数据
         CompletableFuture.runAsync {
             try {
                 val clipboard = get(schematicName)
@@ -44,94 +44,59 @@ object SchematicManager {
                     return@runAsync
                 }
 
-                val actions = ArrayList<PasteAction>()
-                val origin = clipboard.origin
                 val min = clipboard.region.minimumPoint
                 val max = clipboard.region.maximumPoint
+                val dx = max.x() - min.x() + 1
+                val dy = max.y() - min.y() + 1
+                val dz = max.z() - min.z() + 1
+                val totalBlocks = dx * dy * dz
 
-                var minWorldX = Int.MAX_VALUE
-                var minWorldZ = Int.MAX_VALUE
-                var maxWorldX = Int.MIN_VALUE
-                var maxWorldZ = Int.MIN_VALUE
+                // 计算世界坐标范围
+                val origin = clipboard.origin
+                val minWorldX = center.blockX + (min.x() - origin.x())
+                val minWorldZ = center.blockZ + (min.z() - origin.z())
+                val maxWorldX = center.blockX + (max.x() - origin.x())
+                val maxWorldZ = center.blockZ + (max.z() - origin.z())
 
-                // 遍历剪贴板
-                for (x in min.x()..max.x()) {
-                    for (y in min.y()..max.y()) {
-                        for (z in min.z()..max.z()) {
-                            val blockState = clipboard.getBlock(x, y, z)
-                            val blockType = blockState.blockType
-                            if (BukkitAdapter.adapt(blockType).isAir) continue
-
-                            // 优先用 Bukkit 原生解析（对楼梯等复杂方块更可靠）
-                            val blockData = try {
-                                Bukkit.createBlockData(blockState.asString)
-                            } catch (e: Exception) {
-                                BukkitAdapter.adapt(blockState)
-                            }
-                            val relX = x - origin.x()
-                            val relY = y - origin.y()
-                            val relZ = z - origin.z()
-                            actions.add(PasteAction(relX, relY, relZ, blockData))
-
-                            val absX = center.blockX + relX
-                            val absZ = center.blockZ + relZ
-                            if (absX < minWorldX) minWorldX = absX
-                            if (absX > maxWorldX) maxWorldX = absX
-                            if (absZ < minWorldZ) minWorldZ = absZ
-                            if (absZ > maxWorldZ) maxWorldZ = absZ
-                        }
-                    }
-                }
-
-                if (actions.isEmpty()) {
+                if (totalBlocks == 0) {
                     Bukkit.getScheduler().runTask(plugin, Runnable { onComplete() })
                     return@runAsync
                 }
 
-                // 2. 回到主线程：加载区块并锁定 (Add Ticket)
-                Bukkit.getScheduler().runTask(plugin, Runnable {
-                    val futures = ArrayList<CompletableFuture<Chunk>>()
+                plugin.logger.info("[Schematic] $schematicName: ${dx}x${dy}x${dz} = ${totalBlocks} 方块, ~${totalBlocks / BATCH_SIZE + 1} 批")
 
+                // 主线程：加载区块
+                Bukkit.getScheduler().runTask(plugin, Runnable {
                     val minChunkX = minWorldX shr 4
                     val maxChunkX = maxWorldX shr 4
                     val minChunkZ = minWorldZ shr 4
                     val maxChunkZ = maxWorldZ shr 4
 
-                    // 用于记录我们锁定了哪些区块，以便任务完成后释放
                     val ticketedChunks = ArrayList<Long>()
+                    val futures = ArrayList<CompletableFuture<Chunk>>()
 
                     for (cx in minChunkX..maxChunkX) {
                         for (cz in minChunkZ..maxChunkZ) {
-                            // [核心修复] 添加 Plugin Ticket，强制保持区块加载
-                            // 这会阻止服务器在粘贴过程中卸载这些区块
                             world.addPluginChunkTicket(cx, cz, plugin)
-
-                            // 将坐标编码为 Long 存储 (高32位x, 低32位z)，方便后续释放
                             ticketedChunks.add((cx.toLong() shl 32) or (cz.toLong() and 0xFFFFFFFFL))
-
-                            // 依然调用 getChunkAtAsync 确保它们尽快就绪
                             futures.add(world.getChunkAtAsync(cx, cz))
                         }
                     }
 
-                    // 3. 确保全部就绪后加入管线
                     CompletableFuture.allOf(*futures.toTypedArray()).thenAccept {
                         Bukkit.getScheduler().runTask(plugin, Runnable {
-                            // 将 ticketedChunks 传递给 RenderTask，任务结束时负责清理
-                            addToQueue(plugin, center, actions, ticketedChunks, onComplete)
+                            addToQueue(plugin, center, clipboard, ticketedChunks, onComplete)
                         })
                     }
                 })
-
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
-    private fun addToQueue(plugin: PanlingBasic, center: Location, actions: List<PasteAction>, tickets: List<Long>, callback: () -> Unit) {
-        // RenderTask 接收 tickets 参数
-        renderQueue.add(RenderTask(plugin, center, actions, tickets, callback))
+    private fun addToQueue(plugin: PanlingBasic, center: Location, clipboard: Clipboard, tickets: List<Long>, callback: () -> Unit) {
+        renderQueue.add(RenderTask(plugin, center, clipboard, tickets, callback))
         startGlobalPipeline(plugin)
     }
 
@@ -159,7 +124,6 @@ object SchematicManager {
                     val task = renderQueue.poll() ?: break
                     val isFinished = task.processBatch()
                     if (isFinished) {
-                        // 任务完成，触发清理和回调
                         try { task.finish() } catch (e: Exception) { e.printStackTrace() }
                     } else {
                         renderQueue.add(task)
@@ -183,45 +147,57 @@ object SchematicManager {
         } catch (e: Exception) { e.printStackTrace(); null }
     }
 
-    private data class PasteAction(val relX: Int, val relY: Int, val relZ: Int, val blockData: org.bukkit.block.data.BlockData)
-
     private class RenderTask(
-        val plugin: PanlingBasic, // 需要 plugin 实例来移除 ticket
+        val plugin: PanlingBasic,
         val center: Location,
-        val actions: List<PasteAction>,
-        val tickets: List<Long>, // 待释放的票据列表
+        val clipboard: Clipboard,
+        val tickets: List<Long>,
         val callback: () -> Unit
     ) {
         private var index = 0
-        private val world = center.world
+        private val world = checkNotNull(center.world)
+        private val origin = clipboard.origin
+        private val min = clipboard.region.minimumPoint
+        private val max = clipboard.region.maximumPoint
+        private val dz = max.z() - min.z() + 1
+        private val dy = max.y() - min.y() + 1
+        private val totalBlocks = (max.x() - min.x() + 1) * dy * dz
+        private val faweWorld = BukkitAdapter.adapt(world)
+        private val editSession: EditSession =
+            WorldEdit.getInstance().newEditSession(faweWorld)
 
         fun processBatch(): Boolean {
             var count = 0
-            while (index < actions.size && count < 50) {
-                val action = actions[index]
-                if (world != null) {
-                    val targetX = center.blockX + action.relX
-                    val targetY = center.blockY + action.relY
-                    val targetZ = center.blockZ + action.relZ
+            while (index < totalBlocks && count < BATCH_SIZE) {
+                val z = min.z() + (index % dz)
+                val temp = index / dz
+                val y = min.y() + (temp % dy)
+                val x = min.x() + (temp / dy)
 
-                    // 此时 isChunkLoaded 几乎100%为 true，因为有 Ticket 撑腰
-                    // 但保留检查是个好习惯
-                    if (world.isChunkLoaded(targetX shr 4, targetZ shr 4)) {
-                        world.getBlockAt(targetX, targetY, targetZ).setBlockData(action.blockData, false)
-                    }
+                val blockState = clipboard.getBlock(x, y, z)
+                if (!blockState.blockType.material.isAir) {
+                    val relX = x - origin.x()
+                    val relY = y - origin.y()
+                    val relZ = z - origin.z()
+                    try {
+                        editSession.setBlock(
+                            center.blockX + relX,
+                            center.blockY + relY,
+                            center.blockZ + relZ,
+                            blockState
+                        )
+                    } catch (_: Exception) {}
                 }
+
                 index++
                 count++
             }
-            return index >= actions.size
+            editSession.flushQueue()
+            return index >= totalBlocks
         }
 
-        /**
-         * 任务结束时的清理工作
-         */
         fun finish() {
-            // [核心修复] 释放所有区块的 Ticket
-            // 释放后，如果周围没有玩家，这些区块将在之后的 Tick 中被自动卸载，释放内存
+            editSession.close()
             if (world != null) {
                 for (packed in tickets) {
                     val cx = (packed shr 32).toInt()
@@ -229,7 +205,6 @@ object SchematicManager {
                     world.removePluginChunkTicket(cx, cz, plugin)
                 }
             }
-            // 执行回调
             callback()
         }
     }
