@@ -200,6 +200,11 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
     }
 
     @EventHandler
+    fun onQuestComplete(event: QuestCompleteEvent) {
+        dispatchEvent(event.player, event)
+    }
+
+    @EventHandler
     fun onBlockInteract(event: PlayerInteractEvent) {
         if (event.clickedBlock == null) return
         dispatchEvent(event.player, event)

@@ -793,6 +793,7 @@ class MenuManager(
             PlayerSubClass.GOLDEN_BELL -> listOf(
                 "被动 · 金身: 持盾越久，防御越高",
                 "被动 · 嘲讽: 满蓄力时强制怪物攻击你",
+                "被动 · 不灭: 满蓄力时获得生命恢复 II",
                 "代价: 伤害 -50%→-20%"
             )
             PlayerSubClass.SNIPER -> listOf(

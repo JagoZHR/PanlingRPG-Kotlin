@@ -23,6 +23,8 @@ import org.bukkit.metadata.FixedMetadataValue
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.persistence.PersistentDataContainer
 import org.bukkit.plugin.java.JavaPlugin
+import org.bukkit.potion.PotionEffect
+import org.bukkit.potion.PotionEffectType
 import java.util.*
 import kotlin.math.max
 import kotlin.math.min
@@ -43,6 +45,9 @@ class SubClassManager(
 
     // 通知状态缓存
     private val fullStackNotified = HashMap<UUID, Boolean>()
+
+    // [NEW] 金钟满层生命恢复追踪
+    private val goldenBellRegenApplied = HashSet<UUID>()
 
     companion object {
         private const val META_AGGRO_OWNER = "pl_aggro_owner"
@@ -89,6 +94,16 @@ class SubClassManager(
         if (heldTime >= 10.0 && !fullStackNotified.getOrDefault(player.uniqueId, false)) {
             sendFullStackNotification(player, currentSub)
             fullStackNotified[player.uniqueId] = true
+        }
+
+        // [NEW] 金钟满层生命恢复 II
+        if (currentSub == PlayerSubClass.GOLDEN_BELL && heldTime >= 10.0) {
+            goldenBellRegenApplied.add(player.uniqueId)
+            player.addPotionEffect(PotionEffect(
+                PotionEffectType.REGENERATION, 40, 1, true, false
+            ))
+        } else if (goldenBellRegenApplied.remove(player.uniqueId)) {
+            player.removePotionEffect(PotionEffectType.REGENERATION)
         }
     }
 
