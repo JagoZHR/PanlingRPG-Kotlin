@@ -211,6 +211,7 @@ class PanlingBasic : JavaPlugin() {
             // 确保引入 import com.panling.basic.listener.DungeonEntryListener
             registerEvents(DungeonEntryListener(this@PanlingBasic), this@PanlingBasic)
             registerEvents(RespawnListener(this@PanlingBasic), this@PanlingBasic)
+            registerEvents(FireResistanceListener(), this@PanlingBasic)
         }
 
         // 延迟修复任务 + 世界装饰物初始化（需要 world 已加载）
