@@ -7,6 +7,7 @@ import com.panling.basic.api.PlayerClass
 import com.panling.basic.api.SkillContext
 import com.panling.basic.manager.PlayerDataManager
 import com.panling.basic.skill.AbstractSkill
+import com.panling.basic.util.CombatUtil
 import org.bukkit.Bukkit
 import org.bukkit.NamespacedKey
 import org.bukkit.Particle
@@ -35,6 +36,7 @@ class MetalMatrixPassive(plugin: PanlingBasic) : AbstractSkill("METAL_MATRIX", "
             is Projectile -> d.shooter as? Player ?: return
             else -> return
         }
+        if (!CombatUtil.shouldTriggerAttackPassives(attacker, event)) return
         val target = event.entity as? LivingEntity ?: return
         val passives = pl.playerDataManager.getCachedPassives(attacker, PlayerDataManager.PassiveTrigger.ATTACK)
         if (passives.find { it.id == id } == null) return

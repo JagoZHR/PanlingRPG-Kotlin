@@ -370,4 +370,20 @@ object CombatUtil {
     fun isNoProc(player: Player): Boolean {
         return pendingNoProc.contains(player.uniqueId)
     }
+
+    /**
+     * 判断某次攻击是否应触发 ATTACK 类被动技能。
+     * 弓手仅射箭、战士仅近战/技能、法师仅技能伤害。
+     * 未来新增职业/规则只需改此一处，所有被动自动继承。
+     */
+    fun shouldTriggerAttackPassives(player: Player, event: EntityDamageByEntityEvent): Boolean {
+        val damager = event.damager
+        val isProjectile = damager is Projectile
+        return when (PanlingBasic.instance.playerDataManager.getPlayerClass(player)) {
+            PlayerClass.WARRIOR -> !isProjectile   // 近战或技能，不含射箭
+            PlayerClass.ARCHER -> isProjectile      // 仅射箭命中
+            PlayerClass.MAGE -> isSkillDamage(player) // 仅技能伤害
+            PlayerClass.NONE -> true                // 无职业兜底
+        }
+    }
 }

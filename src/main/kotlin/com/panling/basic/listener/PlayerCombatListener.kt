@@ -396,7 +396,9 @@ class PlayerCombatListener(
                 val ctx = SkillContext(
                     attackerPlayer, victim, null, projectile, victim.location, power, SkillTrigger.PASSIVE
                 )
-                skillManager.handlePassives(attackerPlayer, PlayerDataManager.PassiveTrigger.ATTACK, ctx)
+                if (CombatUtil.shouldTriggerAttackPassives(attackerPlayer, event)) {
+                    skillManager.handlePassives(attackerPlayer, PlayerDataManager.PassiveTrigger.ATTACK, ctx)
+                }
             }
 
             // 2. 吸血

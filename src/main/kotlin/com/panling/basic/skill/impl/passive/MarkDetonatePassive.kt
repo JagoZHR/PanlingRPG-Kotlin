@@ -6,6 +6,7 @@ import com.panling.basic.api.PlayerClass
 import com.panling.basic.api.SkillContext
 import com.panling.basic.manager.PlayerDataManager
 import com.panling.basic.skill.AbstractSkill
+import com.panling.basic.util.CombatUtil
 import org.bukkit.Bukkit
 import org.bukkit.Particle
 import org.bukkit.Sound
@@ -33,6 +34,7 @@ class MarkDetonatePassive(plugin: PanlingBasic) : AbstractSkill("MARK_DETONATE",
             is Projectile -> d.shooter as? Player ?: return
             else -> return
         }
+        if (!CombatUtil.shouldTriggerAttackPassives(attacker, event)) return
         val target = event.entity as? LivingEntity ?: return
         if (target is Player) return
         val passives = pl.playerDataManager.getCachedPassives(attacker, PlayerDataManager.PassiveTrigger.ATTACK)
