@@ -3,6 +3,7 @@ package com.panling.basic.dungeon.impl.trial
 import com.panling.basic.PanlingBasic
 import com.panling.basic.dungeon.DungeonInstance
 import com.panling.basic.dungeon.RewardConfig
+import com.panling.basic.dungeon.SchematicManager
 import com.panling.basic.dungeon.StandardDungeonLogic
 import com.panling.basic.dungeon.phase.AbstractDungeonPhase
 import com.panling.basic.dungeon.phase.StandardWaitingPhase
@@ -13,6 +14,7 @@ import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.Sound
 import org.bukkit.attribute.Attribute
+import org.bukkit.enchantments.Enchantment
 import org.bukkit.entity.*
 import org.bukkit.event.EventHandler
 import org.bukkit.event.HandlerList
@@ -65,7 +67,7 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
     override fun createRewardConfig(instance: DungeonInstance) = RewardConfig(title = "§6[圣山] 四圣终试通过！", autoReward = true, autoRewardDelay = 100L, money = 2000.0)
 
     private fun createJitanPhase(instance: DungeonInstance, beast: String, onReturn: () -> Unit): AbstractDungeonPhase =
-        when (beast) { "qinglong" -> QinglongJitanPhase(instance, beast, onReturn); "zhuque" -> ZhuqueJitanPhase(instance, beast, onReturn); else -> JitanPhase(instance, beast, onReturn) }
+        when (beast) { "qinglong" -> QinglongJitanPhase(instance, beast, onReturn); "zhuque" -> ZhuqueJitanPhase(instance, beast, onReturn); "baihu" -> BaihuJitanPhase(instance, beast, onReturn); else -> JitanPhase(instance, beast, onReturn) }
 
     // ==================== MainPhase (unchanged) ====================
     inner class MainPhase(instance: DungeonInstance, private val clearedBeasts: MutableSet<String>) : AbstractDungeonPhase(plugin, instance) {
@@ -526,6 +528,163 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
                     }
                 }
             }
+        }
+    }
+
+    // ==================== BaihuJitanPhase ====================
+    inner class BaihuJitanPhase(
+        instance: DungeonInstance, private val beast: String, private val onReturn: () -> Unit
+    ) : AbstractDungeonPhase(plugin, instance), Listener {
+
+        // 点位偏移 (相对 baihujitan center = Z+4000)
+        private val tp1Loc = Location(null, -119.4, 111.0, 46.6)
+        private val tp2Loc = Location(null, -91.7, 100.0, 41.9)
+        private val finalLoc = Location(null, -91.5, 114.0, 133.5)
+        private val guardLocs = listOf(
+            Location(null, -82.1, 108.0, 68.2), Location(null, -82.2, 108.0, 81.7),
+            Location(null, -83.2, 108.0, 99.9), Location(null, -99.8, 108.0, 99.5),
+            Location(null, -99.6, 108.0, 83.9), Location(null, -100.2, 108.0, 69.3)
+        )
+        private val archerLocs = listOf(Location(null, -67.4, 113.0, 122.0), Location(null, -115.5, 113.0, 122.1))
+
+        private val zombies = mutableListOf<LivingEntity>()
+        private val guards = mutableListOf<Zombie>()
+        private val chunkTickets = mutableListOf<Pair<Int, Int>>()
+        private var phase2 = false; private var isFinished = false
+        private lateinit var jitanCenter: Location
+
+        override fun start() {
+            jitanCenter = instance.centerLocation.clone().add(0.0, 0.0, 4000.0)
+            instance.broadcast("§f白虎§e的幻境已然展开 —— 杀出一条血路，直奔终点！")
+            instance.broadcastSound(Sound.ENTITY_ENDERMAN_TELEPORT)
+            for (uuid in instance.players) Bukkit.getPlayer(uuid)?.teleport(jitanCenter.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4))
+
+            // 阶段一：从 clipboard 找所有楼梯，每 4 个选 1 个刷僵尸
+            val clipboard = SchematicManager.getClipboard("baihujitan") ?: return
+            val orig = clipboard.origin; val min = clipboard.region.minimumPoint; val max = clipboard.region.maximumPoint
+            var stairCount = 0
+            for (cx in min.x..max.x) for (cy in min.y..max.y) for (cz in min.z..max.z) {
+                val bs = clipboard.getBlock(cx, cy, cz)
+                val id = bs.blockType.id.lowercase()
+                if (id.contains("slab") || id.contains("smooth_stone")) {
+                    if (stairCount++ % 4 == 0) {
+                        val worldLoc = Location(instance.world,
+                            jitanCenter.x + cx - orig.x + 0.5,
+                            jitanCenter.y + cy - orig.y + 1.0,
+                            jitanCenter.z + cz - orig.z + 0.5)
+                        val z = instance.world.spawnEntity(worldLoc, EntityType.ZOMBIE) as Zombie
+                        z.customName(Component.text("§f白虎兵卒")); z.setBaby(false)
+                        z.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 40.0; z.health = 40.0
+                        z.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 10.0
+                        z.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.15
+                        z.getAttribute(Attribute.KNOCKBACK_RESISTANCE)?.baseValue = 1.0
+                        z.lootTable = null; z.isPersistent = true; z.removeWhenFarAway = false
+                        z.equipment?.let { it.helmet = ItemStack(Material.LEATHER_HELMET); it.helmetDropChance = 0f }
+                        // 锁仇恨到随机玩家
+                        val target = Bukkit.getPlayer(instance.players.random())
+                        if (target != null) z.target = target
+                        zombies.add(z)
+                        // 保持区块加载
+                        val cx = worldLoc.blockX shr 4; val cz = worldLoc.blockZ shr 4
+                        if (Pair(cx, cz) !in chunkTickets) { chunkTickets.add(Pair(cx, cz)); instance.world.addPluginChunkTicket(cx, cz, plugin) }
+                    }
+                }
+            }
+            instance.broadcast("§e${zombies.size} 个白虎兵卒拦住了去路！")
+
+            Bukkit.getPluginManager().registerEvents(this, plugin)
+        }
+
+        private fun toWorld(loc: Location) = Location(instance.world, jitanCenter.x + loc.x, loc.y, jitanCenter.z + loc.z)
+
+        @EventHandler override fun onDamage(event: EntityDamageByEntityEvent) {
+            if (isFinished) return
+            val damager = event.damager
+            if (damager is Player && instance.players.contains(damager.uniqueId) && event.entity is Mob) {
+                (event.entity as Mob).target = damager
+            }
+        }
+
+        override fun onTick() {
+            if (isFinished) return
+
+            // 坠落检测
+            for (uuid in instance.players) {
+                val p = Bukkit.getPlayer(uuid) ?: continue
+                if (p.location.y < 90.0 && !p.isDead) { p.fallDistance = 0f; p.damage(50.0); p.teleport(jitanCenter.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4)); p.sendMessage("§c你坠入了深渊！") }
+            }
+
+            if (!phase2) {
+                val tp1 = toWorld(tp1Loc)
+                for (uuid in instance.players) {
+                    val p = Bukkit.getPlayer(uuid) ?: continue
+                    if (p.location.distanceSquared(tp1) < 9.0) {
+                        phase2 = true
+                        instance.broadcast("§f传送阵已激活！§e白虎禁卫苏醒了——走位绕过它们！")
+                        instance.broadcastSound(Sound.ENTITY_ZOMBIE_AMBIENT)
+                        val tp2 = toWorld(tp2Loc)
+                        for (id in instance.players) Bukkit.getPlayer(id)?.teleport(tp2.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4))
+                        // 缩放僵尸禁卫
+                        for (loc in guardLocs) {
+                            val g = instance.world.spawnEntity(toWorld(loc), EntityType.ZOMBIE) as Zombie
+                            g.customName(Component.text("§f白虎禁卫")); g.isCustomNameVisible = true; g.setBaby(false)
+                            g.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 999999.0; g.health = 999999.0
+                            g.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 100.0
+                            g.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.28
+                            g.getAttribute(Attribute.KNOCKBACK_RESISTANCE)?.baseValue = 1.0
+                            try { g.getAttribute(Attribute.SCALE)?.baseValue = 2.0 } catch (_: Exception) {}
+                            g.equipment?.let { it.helmet = ItemStack(Material.LEATHER_HELMET); it.helmetDropChance = 0f; it.setItemInMainHand(ItemStack(Material.GOLDEN_SWORD)); it.itemInMainHandDropChance = 0f }
+                            g.lootTable = null; g.isPersistent = true; g.removeWhenFarAway = false
+                            val t = Bukkit.getPlayer(instance.players.random())
+                            if (t != null) g.target = t
+                            guards.add(g)
+                        }
+                        // 击退骷髅
+                        for (loc in archerLocs) {
+                            val sk = instance.world.spawnEntity(toWorld(loc), EntityType.SKELETON) as Skeleton
+                            sk.customName(Component.text("§f白虎弓手")); sk.isCustomNameVisible = true
+                            sk.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 999999.0; sk.health = 999999.0
+                            sk.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 5.0
+                            sk.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.0
+                            sk.getAttribute(Attribute.KNOCKBACK_RESISTANCE)?.baseValue = 1.0
+                            val bow = ItemStack(Material.BOW); val meta = bow.itemMeta
+                            try { meta.addEnchant(Enchantment.PUNCH, 5, true) } catch (_: Exception) {}
+                            bow.itemMeta = meta; sk.equipment?.setItemInMainHand(bow)
+                            sk.lootTable = null; sk.isPersistent = true; sk.removeWhenFarAway = false
+                            sk.equipment?.let { it.helmet = ItemStack(Material.LEATHER_HELMET); it.helmetDropChance = 0f }
+                            val t = Bukkit.getPlayer(instance.players.random())
+                            if (t != null) sk.target = t
+                        }
+                        break
+                    }
+                }
+            }
+
+            // 阶段三：半数人到达终点
+            val final = toWorld(finalLoc)
+            var atFinal = 0
+            for (uuid in instance.players) {
+                val p = Bukkit.getPlayer(uuid) ?: continue
+                if (p.location.distanceSquared(final) < 9.0) atFinal++
+            }
+            val needed = (instance.players.size + 1) / 2
+            if (phase2 && atFinal >= needed) {
+                isFinished = true
+                instance.broadcast("§f§l半数勇士已抵达终点！白虎幻境破解！")
+                instance.broadcastSound(Sound.UI_TOAST_CHALLENGE_COMPLETE)
+                val mc = instance.centerLocation.clone()
+                for (uuid in instance.players) Bukkit.getPlayer(uuid)?.teleport(mc.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4))
+                Bukkit.getScheduler().runTaskLater(plugin, Runnable { onReturn() }, 40L)
+            }
+        }
+
+        override fun end() {
+            HandlerList.unregisterAll(this)
+            // 先释放区块票再清实体
+            for ((cx, cz) in chunkTickets) { try { instance.world.removePluginChunkTicket(cx, cz, plugin) } catch (_: Exception) {} }
+            chunkTickets.clear()
+            zombies.forEach { if (it.isValid) it.remove() }; zombies.clear()
+            guards.forEach { if (it.isValid) it.remove() }; guards.clear()
         }
     }
 }

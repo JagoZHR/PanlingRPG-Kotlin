@@ -154,6 +154,8 @@ object SchematicManager {
         } catch (e: Exception) { null }
     }
 
+    fun getClipboard(name: String): Clipboard? = get(name)
+
     private fun get(name: String): Clipboard? {
         if (cache.containsKey(name)) return cache[name]
         val file = File(folder, "$name.schem")
