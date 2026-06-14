@@ -12,6 +12,7 @@ import net.kyori.adventure.text.event.ClickEvent
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.Material
+import org.bukkit.Particle
 import org.bukkit.Sound
 import org.bukkit.attribute.Attribute
 import org.bukkit.enchantments.Enchantment
@@ -24,6 +25,7 @@ import org.bukkit.event.entity.EntityDamageEvent
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.NamespacedKey
 import org.bukkit.inventory.ItemStack
+import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
 import org.bukkit.util.Vector
 import org.bukkit.persistence.PersistentDataType
@@ -57,6 +59,22 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
         val JITAN_Z = mapOf("qinglong" to 1000, "zhuque" to 2000, "xuanwu" to 3000, "baihu" to 4000)
         val BEAST_NAME = mapOf("qinglong" to "§a青龙","zhuque" to "§c朱雀","xuanwu" to "§3玄武","baihu" to "§f白虎")
         val BEAST_ORDER = listOf("qinglong","zhuque","xuanwu","baihu")
+
+        /** 安全刷怪判定：脚下实心、身体/头部不窒息、不卡墙 */
+        fun isSafeSpawn(loc: Location): Boolean {
+            val block = loc.block
+            val below = loc.clone().subtract(0.0, 1.0, 0.0).block
+            val above = loc.clone().add(0.0, 1.0, 0.0).block
+            if (!below.type.isSolid) return false
+            if (block.type.isOccluding) return false
+            if (above.type.isOccluding) return false
+            var n = 0
+            if (block.getRelative(1, 0, 0).type.isSolid) n++
+            if (block.getRelative(-1, 0, 0).type.isSolid) n++
+            if (block.getRelative(0, 0, 1).type.isSolid) n++
+            if (block.getRelative(0, 0, -1).type.isSolid) n++
+            return n < 3
+        }
     }
 
     private fun difficultyScale(instance: DungeonInstance) = 1.0 + (instance.players.size - 1) * 0.5
@@ -74,7 +92,7 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
     // ==================== MainPhase (unchanged) ====================
     inner class MainPhase(instance: DungeonInstance, private val clearedBeasts: MutableSet<String>) : AbstractDungeonPhase(plugin, instance) {
         private val cores = mutableMapOf<String, Blaze>(); private val coreTimers = mutableMapOf<String, Int>()
-        private var rangeTimer = 40; private var panguCore: Blaze? = null; private var isPanguPhase = false; private var isFinished = false
+        private var rangeTimer = 40; private var panguCore: Blaze? = null; private var isPanguPhase = false; private var isFinished = false; private var firstWave = false
         private val spawnedMobs = mutableListOf<LivingEntity>()
 
         override fun start() {
@@ -92,12 +110,12 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
             val a=cores.size;if(a>0)instance.broadcast("§e${a} 个圣兽核心已激活 —— 打破它们以进入幻境。") else if(clearedBeasts.size>=4)revealPanguCore()
         }
         private fun spawnCoreAt(loc:Location,name:String,hp:Double):Blaze{val c=instance.world.spawnEntity(loc,EntityType.BLAZE) as Blaze;c.customName(Component.text(name));c.isCustomNameVisible=true;c.setAI(false);c.isSilent=true;c.isGlowing=true;c.getAttribute(Attribute.KNOCKBACK_RESISTANCE)?.baseValue=1.0;c.getAttribute(Attribute.MAX_HEALTH)?.baseValue=hp;c.health=hp;c.lootTable=null;c.equipment?.let{it.helmetDropChance=0f;it.chestplateDropChance=0f;it.leggingsDropChance=0f;it.bootsDropChance=0f};c.isPersistent=true;c.removeWhenFarAway=false;return c}
-        private fun revealPanguCore(){isPanguPhase=true;val(dx,dy,dz)=PANGU_CORE_OFFSET;panguCore=spawnCoreAt(instance.centerLocation.clone().add(dx.toDouble(),dy.toDouble(),dz.toDouble()),"§6盘古内核",7000.0*difficultyScale(instance));instance.broadcast("§6§l四象核心全部破解！盘古的内核显露了出来！");instance.broadcastSound(Sound.ENTITY_WITHER_SPAWN)}
+        private fun revealPanguCore(){isPanguPhase=true;firstWave=true;val(dx,dy,dz)=PANGU_CORE_OFFSET;panguCore=spawnCoreAt(instance.centerLocation.clone().add(dx.toDouble(),dy.toDouble(),dz.toDouble()),"§6盘古内核",7000.0*difficultyScale(instance));instance.broadcast("§6§l四象核心全部破解！盘古的内核显露了出来！");instance.broadcastSound(Sound.ENTITY_WITHER_SPAWN)}
         override fun onTick(){
             if(isFinished)return
             val dying= mutableListOf<String>();for((b,c)in cores){if(!c.isValid||c.isDead)dying.add(b)}
             for(b in dying){cores.remove(b);coreTimers.remove(b);instance.broadcast("${BEAST_NAME[b]}§e核心已破碎！幻境之门开启...");instance.broadcastSound(Sound.BLOCK_GLASS_BREAK);isFinished=true;instance.nextPhase(createJitanPhase(instance,b){clearedBeasts.add(b);instance.nextPhase(MainPhase(instance,clearedBeasts))});return}
-            if(isPanguPhase&&panguCore!=null&&(!panguCore!!.isValid||panguCore!!.isDead)){isFinished=true;instance.broadcast("§6§l盘古内核已摧毁！远古的试炼终于结束。");instance.broadcastSound(Sound.UI_TOAST_CHALLENGE_COMPLETE);goToRewardPhase(instance);return}
+            if(isPanguPhase&&panguCore!=null&&(!panguCore!!.isValid||panguCore!!.isDead)){isFinished=true;instance.broadcast("§6§l盘古内核已摧毁！");instance.broadcast("§e真·盘古的幻境正在展开...");instance.broadcastSound(Sound.ENTITY_WITHER_SPAWN);instance.nextPhase(ZhenpanguJitanPhase(instance){goToRewardPhase(instance)});return}
             for((b,t)in coreTimers.toMap()){val nt=t-1;if(nt<=0){spawnNearCore(b);coreTimers[b]= Random.nextInt(600,1500)}else coreTimers[b]=nt}
             rangeTimer--;if(rangeTimer<=0){spawnInRange();rangeTimer= Random.nextInt(150,300)}
             if(!isPanguPhase&&cores.isEmpty()&&clearedBeasts.size>=4)revealPanguCore()
@@ -105,7 +123,7 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
         private fun findSpawnLoc(center:Location,radius:Double,minDist:Double=3.0):Location?{val w=center.world?:return null;for(a in 0 until 15){val ang=Random.nextDouble()*Math.PI*2;val d=minDist+Random.nextDouble()*(radius-minDist);val xb=(center.x+cos(ang)*d).toInt();val zb=(center.z+sin(ang)*d).toInt();for(dy in 0..10)for(s in listOf(1,-1)){val ay=center.blockY+dy*s;if(ay<w.minHeight||ay>=w.maxHeight)continue;val l=Location(w,xb+0.5,ay.toDouble(),zb+0.5);if(isSafeSpawn(l))return l.add(0.0,0.2,0.0)}};return null}
         private fun isSafeSpawn(loc:Location):Boolean{val b=loc.block;val below=loc.clone().subtract(0.0,1.0,0.0).block;val above=loc.clone().add(0.0,1.0,0.0).block;if(!below.type.isSolid)return false;if(below.type.name.let{it.contains("FENCE")||it.contains("WALL")||it.contains("TRAPDOOR")})return false;if(b.type.isOccluding||above.type.isOccluding)return false;var n=0;if(b.getRelative(1,0,0).type.isSolid)n++;if(b.getRelative(-1,0,0).type.isSolid)n++;if(b.getRelative(0,0,1).type.isSolid)n++;if(b.getRelative(0,0,-1).type.isSolid)n++;return n<3}
         private fun spawnNearCore(beast:String){val c=cores[beast]?:return;val ms=REGION_MOBS[beast]?:return;val b=REGION_BOSS[beast]?:return;val s=difficultyScale(instance);for(i in 0 until Random.nextInt(3,7)){val id=if(i==0)b else ms.random();val l=findSpawnLoc(c.location,10.0,2.0)?:continue;val m=plugin.mobManager.spawnMob(l,id)?:continue;scaleHp(m,s);spawnedMobs.add(m)}}
-        private fun spawnInRange(){val c=instance.centerLocation;val(x1,y1,z1)=RANGE1_OFFSET;val(x2,y2,z2)=RANGE2_OFFSET;val s=difficultyScale(instance);for(i in 0 until Random.nextInt(6,13)){val id=if(isPanguPhase)ALL_BOSSES.random() else ALL_MOBS.random();val rx=minOf(x1,x2)+Random.nextDouble()*(maxOf(x1,x2)-minOf(x1,x2));val rz=minOf(z1,z2)+Random.nextDouble()*(maxOf(z1,z2)-minOf(z1,z2));val l=findSpawnLoc(c.clone().add(rx,((y1+y2)/2).toDouble(),rz),8.0,1.0)?:continue;val m=plugin.mobManager.spawnMob(l,id)?:continue;scaleHp(m,s);spawnedMobs.add(m)}}
+        private fun spawnInRange(){val c=instance.centerLocation;val(x1,y1,z1)=RANGE1_OFFSET;val(x2,y2,z2)=RANGE2_OFFSET;val s=difficultyScale(instance);val waveCount = if(firstWave){firstWave=false;Random.nextInt(24,53)}else Random.nextInt(6,13);for(i in 0 until waveCount){val id=if(isPanguPhase)ALL_BOSSES.random() else ALL_MOBS.random();val rx=minOf(x1,x2)+Random.nextDouble()*(maxOf(x1,x2)-minOf(x1,x2));val rz=minOf(z1,z2)+Random.nextDouble()*(maxOf(z1,z2)-minOf(z1,z2));val l=findSpawnLoc(c.clone().add(rx,((y1+y2)/2).toDouble(),rz),8.0,1.0)?:continue;val m=plugin.mobManager.spawnMob(l,id)?:continue;scaleHp(m,s);spawnedMobs.add(m)}}
         private fun scaleHp(mob:LivingEntity,scale:Double){mob.getAttribute(Attribute.MAX_HEALTH)?.let{attr->attr.baseValue*=scale;mob.health=attr.baseValue}}
         override fun end(){cores.values.forEach{if(it.isValid)it.remove()};cores.clear();panguCore?.let{if(it.isValid)it.remove()};spawnedMobs.forEach{if(it.isValid)it.remove()};spawnedMobs.clear()}
     }
@@ -142,7 +160,7 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
         private var quizActive = false; private var isFinished = false; private var allFixedDead = false
         // UUID → (letter → optionText)
         private val playerOptions = mutableMapOf<UUID, Map<String, String>>()
-        private val playerCorrect = mutableMapOf<UUID, String>()
+        private val playerCorrect = mutableMapOf<UUID, Set<String>>()
         private lateinit var jitanCenter: Location
 
         private var lastWarnTick = 0L
@@ -231,8 +249,6 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
             // 收集所有出现过的怪物类型名
             val spawnedNames = mutableSetOf<String>()
             for (pt in points) spawnedNames.add(pt.mobType)
-            // areaMobs 简化为全 qlTypes 出现（因为 area 随机刷，保守认为都可能出现）
-            spawnedNames.addAll(qlTypes.keys)
 
             for (uuid in instance.players) {
                 val p = Bukkit.getPlayer(uuid) ?: continue
@@ -241,29 +257,28 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
             }
         }
 
-        private fun genQuestion(spawned: Set<String>): Triple<String, String, List<String>> {
+        private fun genQuestion(spawned: Set<String>): Triple<String, Set<String>, List<String>> {
             val all = qlTypes.keys.toList()
             if (Random.nextBoolean()) {
                 // A: 某区域 boss
-                val areaLabel: String; val ptId: String
+                val areaLabel: String; val correctSet: Set<String>
                 when (Random.nextInt(3)) {
-                    0 -> { areaLabel = "中心"; ptId = "center" }
-                    1 -> { areaLabel = "一层"; ptId = listOf("floor11", "floor12").random() }
-                    else -> { areaLabel = "二层"; ptId = "floor2" }
+                    0 -> { areaLabel = "中心"; correctSet = setOf(points.find { it.id == "center" }!!.mobType) }
+                    1 -> { areaLabel = "一层"; correctSet = setOf(points.find { it.id == "floor11" }!!.mobType, points.find { it.id == "floor12" }!!.mobType) }
+                    else -> { areaLabel = "二层"; correctSet = setOf(points.find { it.id == "floor2" }!!.mobType) }
                 }
-                val pt = points.find { it.id == ptId } ?: points.first()
-                val correct = pt.mobType; val wrongs = all.filter { it != correct }.shuffled().take(3)
-                return Triple("你在§e大殿${areaLabel}§r杀死的小boss是什么怪物？", correct, (wrongs + correct).shuffled())
+                val wrongs = all.filter { it !in correctSet }.shuffled().take(3)
+                return Triple("你在§e大殿${areaLabel}§r杀死的小boss是什么怪物？", correctSet, (wrongs + correctSet.random()).shuffled())
             } else {
                 // B: 没杀死什么
                 val missing = all.filter { it !in spawned }
                 val correct = if (missing.isNotEmpty()) missing.random() else all.random()
                 val wrongs = all.filter { it != correct }.shuffled().take(3)
-                return Triple("你在本次幻境中§c没有§r杀死什么怪物？", correct, (wrongs + correct).shuffled())
+                return Triple("你在本次幻境中§c没有§r杀死什么怪物？", setOf(correct), (wrongs + correct).shuffled())
             }
         }
 
-        private fun sendQuiz(p: Player, question: String, options: List<String>, correct: String) {
+        private fun sendQuiz(p: Player, question: String, options: List<String>, correct: Set<String>) {
             val letters = listOf("A", "B", "C", "D"); p.sendMessage(""); p.sendMessage("§6══════════════════════"); p.sendMessage("§e$question"); p.sendMessage("")
             val map = mutableMapOf<String, String>()
             for (i in options.indices) {
@@ -282,7 +297,7 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
             if (letter !in listOf("A", "B", "C", "D")) return
             val chosen = playerOptions[p.uniqueId]?.get(letter) ?: return
             val correct = playerCorrect[p.uniqueId] ?: return
-            if (chosen == correct) { win(p) } else { fail(p) }
+            if (chosen in correct) { win(p) } else { fail(p) }
         }
 
         private fun win(p: Player) {
@@ -465,24 +480,22 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
             if (isFinished) return
             val damager = event.damager
 
-            // 烈焰之源被攻击 → 给三叉戟
+            // 烈焰之源被攻击 → 每次攻击给三叉戟
             if (event.entity == source && damager is Player && instance.players.contains(damager.uniqueId)) {
-                if (!hasTrident.contains(damager.uniqueId)) {
-                    val trident = ItemStack(Material.TRIDENT)
-                    val meta = trident.itemMeta; meta.persistentDataContainer.set(NamespacedKey(plugin, "zhuque_trident"), PersistentDataType.BYTE, 1)
-                    meta.displayName(Component.text("§c朱雀之戟"))
-                    trident.itemMeta = meta
-                    damager.inventory.addItem(trident)
-                    hasTrident.add(damager.uniqueId)
-                    damager.sendMessage("§c你获得了一把 §e朱雀之戟§c！用它击落恶魂！")
-                }
+                val trident = ItemStack(Material.TRIDENT)
+                val meta = trident.itemMeta; meta.persistentDataContainer.set(NamespacedKey(plugin, "zhuque_trident"), PersistentDataType.BYTE, 1)
+                meta.displayName(Component.text("§c朱雀之戟"))
+                trident.itemMeta = meta
+                damager.inventory.addItem(trident)
+                hasTrident.add(damager.uniqueId)
+                damager.sendMessage("§c你获得了一把 §e朱雀之戟§c！用它击落恶魂！")
             }
 
             // 三叉戟命中恶魂 (通过投掷物检测)
             if (event.entity == ghast && ghastHitCooldown <= 0) {
                 val shooter = when (damager) {
                     is Player -> if (hasTrident.contains(damager.uniqueId)) damager else null
-                    is org.bukkit.entity.Projectile -> damager.shooter as? Player
+                    is org.bukkit.entity.Trident -> (damager as org.bukkit.entity.Trident).shooter as? Player
                     else -> null
                 }
                 if (shooter != null && hasTrident.contains(shooter.uniqueId)) {
@@ -632,7 +645,7 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
                             g.customName(Component.text("§f白虎禁卫")); g.isCustomNameVisible = true; g.setBaby(false)
                             g.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 999999.0; g.health = 999999.0
                             g.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 100.0
-                            g.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.28
+                            g.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.14
                             g.getAttribute(Attribute.KNOCKBACK_RESISTANCE)?.baseValue = 1.0
                             try { g.getAttribute(Attribute.SCALE)?.baseValue = 2.0 } catch (_: Exception) {}
                             g.equipment?.let { it.helmet = ItemStack(Material.LEATHER_HELMET); it.helmetDropChance = 0f; it.setItemInMainHand(ItemStack(Material.GOLDEN_SWORD)); it.itemInMainHandDropChance = 0f }
@@ -739,16 +752,8 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
                 val pointLoc = toWorld(loc)
                 val count = 10 + Random.nextInt(6) // 10-15
                 for (j in 0 until count) {
-                    val offset = Location(null, (Random.nextDouble()-0.5)*12, 0.0, (Random.nextDouble()-0.5)*12)
-                    val spawnLoc = pointLoc.clone().add(offset.x, offset.y, offset.z).also {
-                        // 找地面：往下扫描到固体方块
-                        val block = it.block
-                        if (!block.type.isSolid && !block.type.isAir) {
-                            var y = it.blockY
-                            while (y > it.world!!.minHeight && !Location(it.world, it.x, y.toDouble(), it.z).block.type.isSolid) y--
-                            it.y = y + 1.0
-                        }
-                    }
+                    val off = Location(null, (Random.nextDouble()-0.5)*12, 0.0, (Random.nextDouble()-0.5)*12)
+                    val spawnLoc = pointLoc.clone().add(off.x, off.y, off.z)
                     val m = plugin.mobManager.spawnMob(spawnLoc, waterMobs.random()) ?: continue
                     spawnedMobs.add(m)
                 }
@@ -857,6 +862,408 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
             lineTurtles.forEach { if (it.entity.isValid) it.entity.remove() }; lineTurtles.clear()
             bouncy?.let { if (it.entity.isValid) it.entity.remove() }; bouncy = null
             silverfish.forEach { if (it.isValid) it.remove() }; silverfish.clear()
+            spawnedMobs.forEach { if (it.isValid) it.remove() }; spawnedMobs.clear()
+        }
+    }
+
+    // ==================== ZhenpanguJitanPhase ====================
+    inner class ZhenpanguJitanPhase(
+        instance: DungeonInstance, private val onComplete: () -> Unit
+    ) : AbstractDungeonPhase(plugin, instance), Listener {
+
+        // 青龙守护者候选类型
+        private val qlTypes = linkedMapOf(
+            "骷髅" to EntityType.SKELETON, "蜘蛛" to EntityType.SPIDER,
+            "僵尸" to EntityType.ZOMBIE, "尸壳" to EntityType.HUSK,
+            "溺尸" to EntityType.DROWNED, "流髑" to EntityType.STRAY,
+            "洞穴蜘蛛" to EntityType.CAVE_SPIDER
+        )
+        // 各地区 boss 池
+        private val regionBossPool = listOf("forest_spider", "desert_husk", "tortoise_shell_warden", "scorched_bone_warrior")
+        private val regionMobPool = listOf("forest_spider","forest_wolf","forest_skeleton","forest_zombie",
+            "desert_husk","desert_zombie","desert_wither_skeleton","desert_skeleton",
+            "tortoise_shell_warden","abyssal_drowned","abyssal_guardian","abyssal_bogged",
+            "scorched_bone_warrior","cave_zombie","cave_skeleton","cave_spider")
+
+        // 硬编码点位
+        private val zhenpanPoints = listOf(
+            Location(null, -0.9, 112.0, -78.9), Location(null, -48.7, 96.0, -142.8),
+            Location(null, -81.4, 87.0, -156.4), Location(null, -103.6, 81.0, -121.8),
+            Location(null, -119.5, 96.0, -26.5), Location(null, -87.1, 70.0, 78.4),
+            Location(null, -51.6, 63.0, 98.6),  Location(null, 26.0, 60.0, 42.3)
+        )
+        private val zhenpanBoss1 = Location(null, -19.6, 109.0, -114.6)
+        private val zhenpanBoss2 = Location(null, -113.6, 88.0, -80.1)
+        private val zhenpanBoss3 = Location(null, -108.4, 88.0, 19.2)
+        private val zhenpanBoss4 = Location(null, -6.6, 57.0, 63.4)
+        private val zhenpanEnter = Location(null, 22.8, 45.0, -1.3)
+        private val zhenpanBigBoss = Location(null, 56.1, 48.0, -58.9)
+
+        // 精英怪追踪
+        private val qinglongElites = mutableListOf<LivingEntity>()
+        private val zhuqueElites = mutableListOf<LivingEntity>()
+        private var baihuElite: LivingEntity? = null
+        private var xuanwuElite: LivingEntity? = null
+        private val spawnedMobs = mutableListOf<LivingEntity>()
+
+        // 大boss
+        private var bigBoss: Evoker? = null
+        private var bigBossActive = false
+
+        // 技能冷却
+        private var skill1Cd = 0  // 开天辟地
+        private var skill2Cd = 0  // 混沌召唤
+        private var skill3Cd = 0  // 地脉冲击
+        private var skill4Cd = 0  // 万钧之势（HP<50%解锁）
+        private var skill4Unlocked = false
+        private var spawnTimer = 0
+        private var isFinished = false
+        private var allElitesDead = false
+        private var spawnComplete = false
+        private var spawnDelay = 40
+        private lateinit var jitanCenter: Location
+
+        private fun toWorld(loc: Location) = Location(instance.world,
+            jitanCenter.x + loc.x, loc.y, jitanCenter.z + loc.z)
+
+        /** 在指定位置画一个水平粒子环（半径=range） */
+        private fun drawRing(center: Location, range: Double, count: Int = 48) {
+            val w = center.world ?: return
+            for (i in 0 until count) {
+                val a = 2.0 * Math.PI * i / count
+                w.spawnParticle(Particle.ENCHANT, center.clone().add(cos(a) * range, 0.5, sin(a) * range), 1, 0.0, 0.0, 0.0, 0.0)
+            }
+        }
+
+        override fun start() {
+            jitanCenter = instance.centerLocation.clone().add(0.0, 0.0, 5000.0)
+            instance.broadcast("§5§l真·盘古§e的幻境已然展开 —— 击败四方守护者，直面盘古幻影！")
+            instance.broadcastSound(Sound.ENTITY_ENDER_DRAGON_GROWL)
+            for (uuid in instance.players) Bukkit.getPlayer(uuid)?.teleport(
+                jitanCenter.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4))
+
+            // zhenpanpoint: 每点 2-3 地区boss + 5-8 地区小怪
+            for (pt in zhenpanPoints) {
+                val wpt = toWorld(pt)
+                val bossCount = 2 + Random.nextInt(2)
+                var bi = 0; var br = 0
+                while (bi < bossCount && br < bossCount * 10) {
+                    val off = Location(null, (Random.nextDouble()-0.5)*8, 0.0, (Random.nextDouble()-0.5)*8)
+                    val sl = wpt.clone().add(off.x, off.y, off.z)
+                    br++
+                    if (!isSafeSpawn(sl)) continue
+                    val m = plugin.mobManager.spawnMob(sl, regionBossPool.random()) ?: continue
+                    spawnedMobs.add(m)
+                    bi++
+                }
+                val mobCount = 5 + Random.nextInt(4)
+                var mi = 0; var mr = 0
+                while (mi < mobCount && mr < mobCount * 10) {
+                    val off = Location(null, (Random.nextDouble()-0.5)*8, 0.0, (Random.nextDouble()-0.5)*8)
+                    val sl = wpt.clone().add(off.x, off.y, off.z)
+                    mr++
+                    if (!isSafeSpawn(sl)) continue
+                    val m = plugin.mobManager.spawnMob(sl, regionMobPool.random()) ?: continue
+                    spawnedMobs.add(m)
+                    mi++
+                }
+            }
+
+            // zhenpanboss1: 青龙精英×3（随机选3种不同类型）
+            val chosen = qlTypes.entries.shuffled().take(3)
+            for ((name, type) in chosen) {
+                val m = instance.world.spawnEntity(toWorld(zhenpanBoss1).clone().add(
+                    (Random.nextDouble()-0.5)*3, 0.0, (Random.nextDouble()-0.5)*3), type) as LivingEntity
+                m.customName(Component.text("§a真·青龙试炼者")); m.isCustomNameVisible = true
+                m.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 2500.0; m.health = 2500.0
+                m.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 50.0
+                if (m is Mob) { m.lootTable = null; m.isPersistent = true; m.removeWhenFarAway = false }
+                if (m is Zombie) { m.setBaby(false); m.equipment?.let {
+                    it.helmetDropChance = 0f; it.chestplateDropChance = 0f
+                    it.leggingsDropChance = 0f; it.bootsDropChance = 0f } }
+                val t = Bukkit.getPlayer(instance.players.random())
+                if (t != null && m is Mob) (m as Mob).target = t
+                qinglongElites.add(m)
+            }
+
+            // zhenpanboss2: 朱雀守卫×3
+            for (i in 0 until 3) {
+                val z = instance.world.spawnEntity(toWorld(zhenpanBoss2).clone().add(
+                    (Random.nextDouble()-0.5)*3, 0.0, (Random.nextDouble()-0.5)*3), EntityType.ZOMBIE) as Zombie
+                z.customName(Component.text("§c真·朱雀守卫")); z.isCustomNameVisible = true; z.setBaby(false)
+                z.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 3000.0; z.health = 3000.0
+                z.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 60.0
+                z.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.28
+                z.lootTable = null; z.isPersistent = true; z.removeWhenFarAway = false
+                z.equipment?.let {
+                    it.helmet = ItemStack(Material.IRON_HELMET); it.chestplate = ItemStack(Material.IRON_CHESTPLATE)
+                    it.leggings = ItemStack(Material.IRON_LEGGINGS); it.boots = ItemStack(Material.IRON_BOOTS)
+                    it.setItemInMainHand(ItemStack(Material.IRON_AXE))
+                    it.helmetDropChance = 0f; it.chestplateDropChance = 0f
+                    it.leggingsDropChance = 0f; it.bootsDropChance = 0f; it.itemInMainHandDropChance = 0f
+                }
+                val t = Bukkit.getPlayer(instance.players.random())
+                if (t != null) z.target = t
+                zhuqueElites.add(z)
+            }
+
+            // zhenpanboss3: 白虎禁卫（3000血,50攻,30防,scale=2,皮帽+金剑）
+            val g = instance.world.spawnEntity(toWorld(zhenpanBoss3), EntityType.ZOMBIE) as Zombie
+            g.customName(Component.text("§f真·白虎斗士")); g.isCustomNameVisible = true; g.setBaby(false)
+            g.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 3000.0; g.health = 3000.0
+            g.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 50.0  // 降低到50
+            g.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.14
+            g.getAttribute(Attribute.KNOCKBACK_RESISTANCE)?.baseValue = 1.0
+            try { g.getAttribute(Attribute.SCALE)?.baseValue = 2.0 } catch (_: Exception) {}
+            g.equipment?.let {
+                it.helmet = ItemStack(Material.LEATHER_HELMET); it.helmetDropChance = 0f
+                it.setItemInMainHand(ItemStack(Material.GOLDEN_SWORD)); it.itemInMainHandDropChance = 0f
+            }
+            g.lootTable = null; g.isPersistent = true; g.removeWhenFarAway = false
+            val t3 = Bukkit.getPlayer(instance.players.random())
+            if (t3 != null) g.target = t3
+            baihuElite = g
+
+            // zhenpanboss4: 玄武装甲溺尸（30攻,2000血,40防,三叉戟,不移动但可攻击/可推动）
+            val d = instance.world.spawnEntity(toWorld(zhenpanBoss4), EntityType.DROWNED) as Drowned
+            d.customName(Component.text("§3真·玄武守卫")); d.isCustomNameVisible = true
+            d.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 2000.0; d.health = 2000.0
+            d.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 30.0
+            d.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.0  // 不能移动
+            d.equipment?.let { it.setItemInMainHand(ItemStack(Material.TRIDENT)); it.itemInMainHandDropChance = 0f }
+            d.lootTable = null; d.isPersistent = true; d.removeWhenFarAway = false
+            val t4 = Bukkit.getPlayer(instance.players.random())
+            if (t4 != null) d.target = t4
+            xuanwuElite = d
+
+            Bukkit.getPluginManager().registerEvents(this, plugin)
+        }
+
+        @EventHandler override fun onDamage(event: EntityDamageByEntityEvent) {
+            if (isFinished) return
+            val damager = event.damager
+            if (damager is Player && instance.players.contains(damager.uniqueId) && event.entity is Mob) {
+                (event.entity as Mob).target = damager
+            }
+        }
+
+        override fun onTick() {
+            if (isFinished) return
+
+            // 前 40 tick 不判断精英死亡——避免刚 spawn 还没初始化完就误判
+            if (!spawnComplete) { spawnDelay--; if (spawnDelay <= 0) spawnComplete = true }
+
+            // 坠落检测
+            for (uuid in instance.players) {
+                val p = Bukkit.getPlayer(uuid) ?: continue
+                if (p.location.y < 10.0 && !p.isDead) {
+                    p.fallDistance = 0f; p.damage(30.0)
+                    p.teleport(jitanCenter.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4))
+                    p.sendMessage("§c你坠入了深渊！")
+                }
+            }
+            // 怪物坠落杀死
+            val allElites = qinglongElites + zhuqueElites + listOfNotNull(baihuElite, xuanwuElite)
+            for (m in allElites) {
+                if (m.isValid && !m.isDead && m.location.y < 10.0) m.remove()
+            }
+            if (bigBoss?.isValid == true && !bigBoss!!.isDead && bigBoss!!.location.y < 10.0) bigBoss!!.remove()
+            spawnedMobs.removeAll { m ->
+                if (!m.isValid || m.isDead) true
+                else if (m.location.y < 10.0) { m.remove(); true }
+                else false
+            }
+
+            // 检测所有精英死亡
+            if (spawnComplete && !allElitesDead) {
+                val qlAlive = qinglongElites.any { it.isValid && !it.isDead }
+                val zqAlive = zhuqueElites.any { it.isValid && !it.isDead }
+                val bhAlive = baihuElite?.let { it.isValid && !it.isDead } == true
+                val xwAlive = xuanwuElite?.let { it.isValid && !it.isDead } == true
+                if (!qlAlive && !zqAlive && !bhAlive && !xwAlive) {
+                    allElitesDead = true
+                    instance.broadcast("§5§l四方守护者已全部倒下！前往盘古斧上直面盘古幻影！")
+                    instance.broadcastSound(Sound.ENTITY_ENDERMAN_TELEPORT)
+                }
+            }
+
+            // 进入中心触发大boss
+            if (allElitesDead && !bigBossActive) {
+                val enter = toWorld(zhenpanEnter)
+                for (uuid in instance.players) {
+                    val p = Bukkit.getPlayer(uuid) ?: continue
+                    if (p.location.distanceSquared(enter) < 25.0) {  // 5格内
+                        bigBossActive = true
+                        instance.broadcast("§5§l盘古幻影苏醒了！")
+                        instance.broadcastSound(Sound.ENTITY_WITHER_SPAWN)
+                        val bbLoc = toWorld(zhenpanBigBoss)
+                        val ev = instance.world.spawnEntity(bbLoc, EntityType.EVOKER) as Evoker
+                        ev.customName(Component.text("§5§l盘古幻影")); ev.isCustomNameVisible = true
+                        ev.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 7500.0; ev.health = 7500.0
+                        ev.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 50.0
+                        ev.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.0  // 不移动
+                        ev.getAttribute(Attribute.KNOCKBACK_RESISTANCE)?.baseValue = 1.0  // 不可推动
+                        try { ev.getAttribute(Attribute.SCALE)?.baseValue = 2.5 } catch (_: Exception) {}
+                        ev.lootTable = null; ev.isPersistent = true; ev.removeWhenFarAway = false
+                        ev.equipment?.let {
+                            it.helmetDropChance = 0f; it.chestplateDropChance = 0f
+                            it.leggingsDropChance = 0f; it.bootsDropChance = 0f
+                        }
+                        bigBoss = ev
+                        skill1Cd = 100; skill2Cd = 60; skill3Cd = 140; skill4Cd = 9999; skill4Unlocked = false
+                        spawnTimer = 300
+                        break
+                    }
+                }
+            }
+            // 精英未全死但到了enter点 → 传送回起点
+            if (!allElitesDead && !bigBossActive) {
+                val enter = toWorld(zhenpanEnter)
+                for (uuid in instance.players) {
+                    val p = Bukkit.getPlayer(uuid) ?: continue
+                    if (p.location.distanceSquared(enter) < 25.0) {
+                        p.teleport(jitanCenter.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4))
+                        p.sendMessage("§c四方守护者尚未全部击败！先击败它们再来。")
+                    }
+                }
+            }
+
+            // 大boss阶段
+            if (bigBossActive && bigBoss != null) {
+                val b = bigBoss!!
+                if (!b.isValid || b.isDead) {
+                    isFinished = true
+                    instance.broadcast("§5§l盘古幻影已被击败！真·盘古的试炼终于完成！")
+                    instance.broadcastSound(Sound.UI_TOAST_CHALLENGE_COMPLETE)
+                    for (uuid in instance.players) Bukkit.getPlayer(uuid)?.teleport(
+                        instance.centerLocation.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4))
+                    Bukkit.getScheduler().runTaskLater(plugin, Runnable { onComplete() }, 60L)
+                    return
+                }
+
+                // 技能1: 开天辟地 (cd 22s = 440tick)
+                skill1Cd--
+                if (skill1Cd <= 0) {
+                    skill1Cd = 440
+                    instance.broadcast("§5盘古幻影§e施展 §c开天辟地§e——退开！")
+                    val bc = b.location.clone()
+                    drawRing(bc, 8.0)
+                    // 1秒后刷新环
+                    Bukkit.getScheduler().runTaskLater(plugin, Runnable { drawRing(bc, 8.0) }, 20L)
+                    // 2秒后爆炸
+                    Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                        drawRing(bc, 8.0)
+                        bc.world.spawnParticle(Particle.EXPLOSION, bc.add(0.0, 1.0, 0.0), 20, 1.5, 2.0, 1.5, 0.0)
+                        for (uuid in instance.players) {
+                            val p = Bukkit.getPlayer(uuid) ?: continue
+                            if (p.location.distanceSquared(bc) < 64.0) {  // 8格内
+                                val away = p.location.toVector().subtract(bc.toVector()).normalize()
+                                p.velocity = away.multiply(3.0).setY(0.5)
+                                p.damage(15.0)
+                            }
+                        }
+                    }, 40L)  // 2s预警
+                }
+
+                // 技能2: 混沌召唤 (cd 18s = 360tick)
+                skill2Cd--
+                if (skill2Cd <= 0) {
+                    skill2Cd = 360
+                    instance.broadcast("§5盘古幻影§e施展 §a混沌召唤§e——仆从涌现！")
+                    for (i in 0 until 3) {
+                        val off = Location(null, (Random.nextDouble()-0.5)*16, 0.0, (Random.nextDouble()-0.5)*16)
+                        val sl = b.location.clone().add(off.x, off.y, off.z)
+                        val m = plugin.mobManager.spawnMob(sl, regionMobPool.random()) ?: continue
+                        sl.world.spawnParticle(Particle.PORTAL, sl, 30, 1.0, 1.0, 1.0, 0.02)
+                        spawnedMobs.add(m)
+                    }
+                }
+
+                // 技能3: 地脉冲击 (cd 25s = 500tick) — 拉向boss，距离越远伤害越高
+                skill3Cd--
+                if (skill3Cd <= 0) {
+                    skill3Cd = 500
+                    instance.broadcast("§5盘古幻影§e施展 §6地脉冲击§e——大地在拖动你！")
+                    val bc = b.location.clone()
+                    drawRing(bc, 10.0, 64)  // 10格外受伤
+                    // 1.5秒刷新环
+                    Bukkit.getScheduler().runTaskLater(plugin, Runnable { drawRing(bc, 10.0, 64) }, 30L)
+                    // 3秒后执行
+                    Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                        drawRing(bc, 10.0, 64)
+                        bc.world.spawnParticle(Particle.CLOUD, bc.add(0.0, 0.5, 0.0), 40, 2.0, 0.5, 2.0, 0.05)
+                        for (uuid in instance.players) {
+                            val p = Bukkit.getPlayer(uuid) ?: continue
+                            val dist = p.location.distance(bc)
+                            val pull = bc.toVector().subtract(p.location.toVector()).normalize().multiply(2.5).setY(0.3)
+                            p.velocity = pull
+                            if (dist > 10.0) {
+                                val dmg = (minOf(dist, 20.0) - 10.0) / 10.0 * 80.0
+                                p.damage(dmg)
+                                p.world.spawnParticle(Particle.EXPLOSION, p.location.add(0.0, 1.0, 0.0), 8, 0.5, 0.5, 0.5, 0.0)
+                            }
+                            p.world.spawnParticle(Particle.CLOUD, p.location.add(0.0, 0.2, 0.0), 10, 0.5, 0.0, 0.5, 0.02)
+                        }
+                    }, 60L)  // 3s前摇
+                }
+
+                // 技能4: 万钧之势 (HP<50%解锁, cd 20s = 400tick)
+                if (b.health / b.getAttribute(Attribute.MAX_HEALTH)!!.baseValue < 0.5) {
+                    if (!skill4Unlocked) { skill4Unlocked = true; skill4Cd = 200; instance.broadcast("§5盘古幻影§c生命垂危——万钧之势即将降临！") }
+                    skill4Cd--
+                    if (skill4Cd <= 0) {
+                        skill4Cd = 400
+                        instance.broadcast("§5盘古幻影§e蓄力 §c万钧之势§e——快跑！")
+                        val bc = b.location.clone()
+                        drawRing(bc, 8.0)
+                        for (uuid in instance.players) {
+                            val p = Bukkit.getPlayer(uuid) ?: continue
+                            p.addPotionEffect(PotionEffect(PotionEffectType.SLOWNESS, 40, 2, false, false))
+                            p.world.spawnParticle(Particle.ENCHANT, p.location.add(0.0, 1.5, 0.0), 20, 0.5, 1.5, 0.5, 0.0)
+                        }
+                        // 1秒后刷新环
+                        Bukkit.getScheduler().runTaskLater(plugin, Runnable { drawRing(bc, 8.0) }, 20L)
+                        Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                            drawRing(bc, 8.0)
+                            // boss脚下大爆炸
+                            b.world.spawnParticle(Particle.EXPLOSION, b.location.add(0.0, 1.0, 0.0), 15, 1.0, 1.0, 1.0, 0.0)
+                            b.world.spawnParticle(Particle.CLOUD, b.location.add(0.0, 0.5, 0.0), 30, 2.0, 0.5, 2.0, 0.05)
+                            for (uuid in instance.players) {
+                                val p = Bukkit.getPlayer(uuid) ?: continue
+                                if (p.location.distanceSquared(b.location) < 64.0) {
+                                    p.damage(25.0)
+                                    p.velocity = p.location.toVector().subtract(b.location.toVector()).normalize().multiply(2.5).setY(0.6)
+                                    p.world.spawnParticle(Particle.EXPLOSION, p.location.add(0.0, 1.0, 0.0), 10, 0.8, 1.2, 0.8, 0.0)
+                                    p.world.spawnParticle(Particle.CLOUD, p.location.add(0.0, 0.3, 0.0), 15, 0.5, 0.3, 0.5, 0.04)
+                                }
+                            }
+                        }, 40L)  // 2秒后爆炸
+                    }
+                }
+
+                // 周围定时刷怪 (每15-20秒)
+                spawnTimer--
+                if (spawnTimer <= 0) {
+                    spawnTimer = 300 + Random.nextInt(100)
+                    val cnt = 2 + Random.nextInt(3)
+                    for (i in 0 until cnt) {
+                        val angle = Random.nextDouble() * Math.PI * 2
+                        val dist = 10.0 + Random.nextDouble() * 10.0
+                        val sl = b.location.clone().add(cos(angle) * dist, 0.0, sin(angle) * dist)
+                        val m = plugin.mobManager.spawnMob(sl, regionMobPool.random()) ?: continue
+                        spawnedMobs.add(m)
+                    }
+                }
+            }
+        }
+
+        override fun end() {
+            HandlerList.unregisterAll(this)
+            qinglongElites.forEach { if (it.isValid) it.remove() }; qinglongElites.clear()
+            zhuqueElites.forEach { if (it.isValid) it.remove() }; zhuqueElites.clear()
+            baihuElite?.let { if (it.isValid) it.remove() }; baihuElite = null
+            xuanwuElite?.let { if (it.isValid) it.remove() }; xuanwuElite = null
+            bigBoss?.let { if (it.isValid) it.remove() }; bigBoss = null
             spawnedMobs.forEach { if (it.isValid) it.remove() }; spawnedMobs.clear()
         }
     }
