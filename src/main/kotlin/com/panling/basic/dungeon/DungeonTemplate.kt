@@ -37,5 +37,8 @@ data class DungeonTemplate(
     val requiredQuests: List<String> = emptyList(),
 
     // 主 schematic 粘贴前，先粘贴的附加 schematic（在 tick 启动前完成，零卡顿）
-    val prePasteSchematics: List<PrePasteSchematic> = emptyList()
+    val prePasteSchematics: List<PrePasteSchematic> = emptyList(),
+
+    // 副本内死亡复活费用（铜钱，0 = 不允许复活）
+    val reviveCost: Double = 0.0
 )

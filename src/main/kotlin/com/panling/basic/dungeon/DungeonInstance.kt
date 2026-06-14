@@ -161,6 +161,13 @@ class DungeonInstance(
         }
     }
 
+    /** 处理内部指令（来自 InternalCommand） */
+    fun handleQAnswer(player: Player, letter: String) {
+        if (state == DungeonState.RUNNING) {
+            currentPhase?.onQAnswer(player, letter)
+        }
+    }
+
     // ==========================================
     // 结算与销毁
     // ==========================================

@@ -22,7 +22,6 @@ import org.bukkit.event.HandlerList
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.event.entity.EntityDamageEvent
-import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.NamespacedKey
 import org.bukkit.inventory.ItemStack
 import org.bukkit.potion.PotionEffect
@@ -283,21 +282,20 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
             val map = mutableMapOf<String, String>()
             for (i in options.indices) {
                 map[letters[i]] = options[i]
-                p.sendMessage(Component.text("  §6[${letters[i]}] §a${options[i]}").clickEvent(ClickEvent.runCommand("/qanswer ${letters[i]}")))
+                p.sendMessage(Component.text("  §6[${letters[i]}] §a${options[i]}").clickEvent(ClickEvent.runCommand("/plbasic internal qanswer ${letters[i]}")))
             }
             p.sendMessage("§6══════════════════════")
             playerOptions[p.uniqueId] = map; playerCorrect[p.uniqueId] = correct
         }
 
-        @EventHandler fun onCmd(event: PlayerCommandPreprocessEvent) {
-            if (!quizActive || isFinished) return; val msg = event.message.trim()
-            if (!msg.startsWith("/qanswer ")) return; event.isCancelled = true
-            val p = event.player; if (!instance.players.contains(p.uniqueId)) return
-            val letter = msg.removePrefix("/qanswer ").trim().uppercase()
-            if (letter !in listOf("A", "B", "C", "D")) return
-            val chosen = playerOptions[p.uniqueId]?.get(letter) ?: return
-            val correct = playerCorrect[p.uniqueId] ?: return
-            if (chosen in correct) { win(p) } else { fail(p) }
+        override fun onQAnswer(player: Player, letter: String) {
+            if (!quizActive || isFinished) return
+            if (!instance.players.contains(player.uniqueId)) return
+            val up = letter.trim().uppercase()
+            if (up !in listOf("A", "B", "C", "D")) return
+            val chosen = playerOptions[player.uniqueId]?.get(up) ?: return
+            val correct = playerCorrect[player.uniqueId] ?: return
+            if (chosen in correct) { win(player) } else { fail(player) }
         }
 
         private fun win(p: Player) {

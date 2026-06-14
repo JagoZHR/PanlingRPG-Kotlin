@@ -14,7 +14,12 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.event.player.PlayerTeleportEvent
+import org.bukkit.scheduler.BukkitTask
 import org.bukkit.util.Vector
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.event.ClickEvent
+import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.format.TextDecoration
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -26,6 +31,14 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
     private val activeInstances = ConcurrentHashMap<String, DungeonInstance>()
     private val playerInstanceMap = ConcurrentHashMap<UUID, String>()
     private val indexInstanceMap = ConcurrentHashMap<Int, String>()
+    private val pendingRevives = ConcurrentHashMap<UUID, PendingRevive>()
+
+    data class PendingRevive(
+        val instanceId: String,
+        val cost: Double,
+        val glassLoc: Location,
+        var timerTask: BukkitTask? = null
+    )
 
     private val INSTANCE_WORLD_NAME = "panling_instances"
 
@@ -268,16 +281,112 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
         }
     }
 
-    /** 死亡时退出副本（不传送，让玩家正常复活） */
+    /** 死亡时处理：有复活费用 → 进入等待复活状态；无 → 正常退出 */
     fun handleDungeonDeath(player: Player) {
         val instanceId = playerInstanceMap[player.uniqueId] ?: return
         val instance = activeInstances[instanceId] ?: return
+        val template = templates[instance.template.id] ?: return
+
+        if (template.reviveCost > 0.0) {
+            // 进入等待复活状态
+            val reviveLoc: Location
+            if (template.spectatorBuild) {
+                // 重建玻璃笼子（构建后已被清除）
+                val dims = SchematicManager.getDimensions(template.schematicName)
+                val platformY = instance.centerLocation.blockY + (dims?.second ?: 50) + 4
+                val px = instance.centerLocation.blockX; val pz = instance.centerLocation.blockZ
+                val world = instance.world
+                for (dx in -2..2) for (dy in 0..5) for (dz in -2..2) {
+                    val edge = kotlin.math.abs(dx) == 2 || kotlin.math.abs(dz) == 2 || dy == 0 || dy == 5
+                    if (edge) world.getBlockAt(px + dx, platformY + dy, pz + dz).setType(org.bukkit.Material.GLASS, false)
+                }
+                reviveLoc = Location(world, px + 0.5, platformY + 1.0, pz + 0.5)
+            } else {
+                reviveLoc = instance.centerLocation.clone().add(instance.template.spawnOffset)
+            }
+            player.teleport(reviveLoc)
+            player.health = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)!!.baseValue
+
+            val pr = PendingRevive(instanceId, template.reviveCost, reviveLoc)
+            val task = Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                pendingRevives.remove(player.uniqueId)
+                doLeave(player, instanceId, instance)
+                player.sendMessage("§c你在副本中阵亡，15秒内未复活，已退出副本。")
+            }, 300L)
+            pr.timerTask = task
+            pendingRevives[player.uniqueId] = pr
+
+            // 发送点击选项
+            val msg = Component.text()
+                .append(Component.text("§c════════════════════════\n"))
+                .append(Component.text("§c你已阵亡！"))
+                .append(Component.text("\n  "))
+                .append(Component.text("§a[支付 ${"%.0f".format(template.reviveCost)} 铜钱复活]")
+                    .clickEvent(ClickEvent.runCommand("/plbasic internal dungeon_revive"))
+                    .hoverEvent(Component.text("§7点击支付复活")))
+                .append(Component.text("    "))
+                .append(Component.text("§7[放弃，退出副本]")
+                    .clickEvent(ClickEvent.runCommand("/plbasic internal dungeon_leave"))
+                    .hoverEvent(Component.text("§7点击放弃")))
+                .append(Component.text("\n§c════════════════════════"))
+                .build()
+            player.sendMessage(msg)
+        } else {
+            // 不支持复活 → 直接退出
+            doLeave(player, instanceId, instance)
+        }
+    }
+
+    /** 玩家确认复活 */
+    fun revivePlayer(player: Player) {
+        val pr = pendingRevives.remove(player.uniqueId) ?: run {
+            player.sendMessage("§c你没有等待复活的副本记录。")
+            return
+        }
+        pr.timerTask?.cancel()
+        if (!plugin.economyManager.takeMoney(player, pr.cost)) {
+            player.sendMessage("§c铜钱不足！复活需要 ${"%.0f".format(pr.cost)} 铜钱。")
+            // 重新进入等待状态
+            val instanceId = pr.instanceId; val glassLoc = pr.glassLoc; val cost = pr.cost
+            val task = Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                pendingRevives.remove(player.uniqueId)
+                val inst = activeInstances[instanceId] ?: return@Runnable
+                doLeave(player, instanceId, inst)
+                player.sendMessage("§c铜钱不足，已退出副本。")
+            }, 200L)
+            pendingRevives[player.uniqueId] = PendingRevive(instanceId, cost, glassLoc, task)
+            return
+        }
+        val instance = activeInstances[pr.instanceId] ?: return
+        val spawn = instance.centerLocation.clone().add(instance.template.spawnOffset)
+        player.teleport(spawn)
+        player.health = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)!!.baseValue
+        player.sendMessage("§a你已花费 ${"%.0f".format(pr.cost)} 铜钱复活！")
+    }
+
+    /** 玩家放弃复活 / 超时 */
+    fun cancelRevive(player: Player) {
+        val pr = pendingRevives.remove(player.uniqueId) ?: return
+        pr.timerTask?.cancel()
+        val instance = activeInstances[pr.instanceId] ?: return
+        doLeave(player, pr.instanceId, instance)
+        player.sendMessage("§7你放弃了复活，已退出副本。")
+    }
+
+    /** 无声清理（玩家退出时用） */
+    private fun cancelReviveSilent(uuid: UUID) {
+        val pr = pendingRevives.remove(uuid) ?: return
+        pr.timerTask?.cancel()
+    }
+
+    private fun doLeave(player: Player, instanceId: String, instance: DungeonInstance) {
         playerInstanceMap.remove(player.uniqueId)
         instance.players.remove(player.uniqueId)
-        // 正常路径：副本空了就关闭
         Bukkit.getScheduler().runTaskLater(plugin, Runnable {
             if (instance.players.isEmpty()) removeInstance(instanceId)
         }, 20L)
+        // 击杀玩家触发正常重生（此时已移出副本，不会再拦截）
+        player.health = 0.0
     }
 
     fun isPlaying(player: Player) = playerInstanceMap.containsKey(player.uniqueId)
@@ -387,7 +496,8 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
                     exitLoc = parseLocation(config.getString("settings.exit_loc")),
                     spectatorBuild = config.getBoolean("spectator_build", false),
                     requiredQuests = config.getStringList("required_quests").filter { it.isNotBlank() },
-                    prePasteSchematics = prePaste
+                    prePasteSchematics = prePaste,
+                    reviveCost = config.getDouble("revive_cost", 0.0)
                 )
                 templates[id] = template
             } catch (e: Exception) { e.printStackTrace() }
@@ -421,6 +531,7 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
 
     @EventHandler
     fun onPlayerQuit(event: PlayerQuitEvent) {
+        cancelReviveSilent(event.player.uniqueId)
         leaveDungeon(event.player)
     }
 

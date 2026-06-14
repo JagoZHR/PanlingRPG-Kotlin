@@ -45,4 +45,6 @@ abstract class AbstractDungeonPhase(
     open fun onPlayerDeath(player: Player) {}
 
     open fun onDamage(event: EntityDamageByEntityEvent) {}
+
+    open fun onQAnswer(player: Player, letter: String) {}
 }

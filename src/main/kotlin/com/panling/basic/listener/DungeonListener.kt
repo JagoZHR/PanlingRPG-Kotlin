@@ -1,15 +1,37 @@
 package com.panling.basic.listener
 
 import com.panling.basic.PanlingBasic
+import org.bukkit.attribute.Attribute
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
+import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityDamageByEntityEvent
+import org.bukkit.event.entity.EntityDamageEvent
 import org.bukkit.event.entity.EntityDeathEvent
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.player.PlayerInteractEvent
 
 class DungeonListener(private val plugin: PanlingBasic) : Listener {
+
+    /**
+     * 【复活拦截】致死伤害前，如果副本支持复活，则取消死亡并触发复活菜单
+     * 最高优先级确保在死亡事件前拦截
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    fun onFatalDamage(event: EntityDamageEvent) {
+        if (event.isCancelled) return
+        val entity = event.entity
+        if (entity !is Player) return
+        if (event.finalDamage < entity.health) return  // 非致死
+        val instance = plugin.dungeonManager.getInstance(entity) ?: return
+        if (instance.template.reviveCost <= 0.0) return
+
+        // 取消死亡，回满血，触发复活菜单
+        event.isCancelled = true
+        entity.health = entity.getAttribute(Attribute.MAX_HEALTH)!!.baseValue
+        plugin.dungeonManager.handleDungeonDeath(entity)
+    }
 
     /**
      * 玩家交互事件

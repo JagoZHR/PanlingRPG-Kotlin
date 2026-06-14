@@ -41,6 +41,20 @@ class InternalCommand(plugin: PanlingBasic) : SubCommand(plugin) {
                     plugin.barterManager.openBarter(player, args[1])
                 }
             }
+
+            "dungeon_revive" -> {
+                plugin.dungeonManager.revivePlayer(player)
+            }
+
+            "dungeon_leave" -> {
+                plugin.dungeonManager.cancelRevive(player)
+            }
+
+            "qanswer" -> {
+                if (args.size < 2) return
+                val instance = plugin.dungeonManager.getInstance(player) ?: return
+                instance.handleQAnswer(player, args[1])
+            }
         }
     }
 
