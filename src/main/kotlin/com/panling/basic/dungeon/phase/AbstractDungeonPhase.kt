@@ -2,6 +2,7 @@ package com.panling.basic.dungeon.phase
 
 import com.panling.basic.PanlingBasic
 import com.panling.basic.dungeon.DungeonInstance
+import org.bukkit.Location
 import org.bukkit.entity.Player
 import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.event.entity.EntityDeathEvent
@@ -47,4 +48,9 @@ abstract class AbstractDungeonPhase(
     open fun onDamage(event: EntityDamageByEntityEvent) {}
 
     open fun onQAnswer(player: Player, letter: String) {}
+
+    /** 本阶段死亡后的复活位置。默认返回副本出生点，幻境阶段应重写为 jitanCenter */
+    open fun getReviveLocation(): Location {
+        return instance.centerLocation.clone().add(instance.template.spawnOffset)
+    }
 }

@@ -129,7 +129,8 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
 
     // ==================== JitanPhase (generic) ====================
     inner class JitanPhase(instance: DungeonInstance, private val beast: String, private val onReturn: () -> Unit) : AbstractDungeonPhase(plugin, instance) {
-        private var boss:LivingEntity?=null;private val adds= mutableListOf<LivingEntity>();private var isFinished=false
+        private var boss: LivingEntity? = null; private val adds = mutableListOf<LivingEntity>(); private var isFinished = false
+        override fun getReviveLocation() = instance.centerLocation.clone().add(0.0, 0.0, (JITAN_Z[beast] ?: 0).toDouble())
         override fun start(){instance.broadcast("${BEAST_NAME[beast]}§e的幻境已然展开 —— 击败其中的守护者！");instance.broadcastSound(Sound.ENTITY_ENDERMAN_TELEPORT);val jc=instance.centerLocation.clone().add(0.0,0.0,(JITAN_Z[beast]?:0).toDouble());for(uuid in instance.players)Bukkit.getPlayer(uuid)?.teleport(jc.clone().add((Random.nextDouble()-0.5)*4,2.0,(Random.nextDouble()-0.5)*4));val s=difficultyScale(instance);val bid=REGION_BOSS[beast]?:return;boss=plugin.mobManager.spawnMob(jc.clone().add(0.0,1.0,0.0),bid);boss?.let{scaleHp(it,s)};val pool=REGION_MOBS[beast]?.filter{it!=bid}?:emptyList();repeat(Random.nextInt(2,4)){if(pool.isEmpty())return@repeat;val m=plugin.mobManager.spawnMob(jc.clone().add((Random.nextDouble()-0.5)*6,1.0,(Random.nextDouble()-0.5)*6),pool.random())?:return@repeat;scaleHp(m,s);adds.add(m)}}
         override fun onTick(){if(isFinished)return;if(boss==null||!boss!!.isValid||boss!!.isDead){isFinished=true;instance.broadcast("${BEAST_NAME[beast]}§e的幻境已被破解！");instance.broadcastSound(Sound.UI_TOAST_CHALLENGE_COMPLETE);val mc=instance.centerLocation.clone();for(uuid in instance.players)Bukkit.getPlayer(uuid)?.teleport(mc.clone().add((Random.nextDouble()-0.5)*4,2.0,(Random.nextDouble()-0.5)*4));Bukkit.getScheduler().runTaskLater(plugin,Runnable{onReturn()},40L)}}
         override fun end(){boss?.let{if(it.isValid)it.remove()};adds.forEach{if(it.isValid)it.remove()};adds.clear()}
@@ -166,6 +167,8 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
 
         private var spawnComplete = false
         private var spawnDelay = 40
+
+        override fun getReviveLocation() = jitanCenter
 
         override fun start() {
             jitanCenter = instance.centerLocation.clone().add(0.0, 0.0, 1000.0)
@@ -358,6 +361,8 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
         private val hasTrident = mutableSetOf<UUID>()
         private lateinit var jitanCenter: Location
         private var spawnDelay = 40
+
+        override fun getReviveLocation() = jitanCenter
 
         override fun start() {
             jitanCenter = instance.centerLocation.clone().add(0.0, 0.0, 2000.0)
@@ -566,6 +571,8 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
         private var phase2 = false; private var isFinished = false
         private lateinit var jitanCenter: Location
 
+        override fun getReviveLocation() = jitanCenter
+
         override fun start() {
             jitanCenter = instance.centerLocation.clone().add(0.0, 0.0, 4000.0)
             instance.broadcast("§f白虎§e的幻境已然展开 —— 杀出一条血路，直奔终点！")
@@ -717,6 +724,8 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
         private var isFinished = false
         private lateinit var jitanCenter: Location
         private lateinit var center: Location
+
+        override fun getReviveLocation() = jitanCenter
 
         // 6 对线坐标
         private val linePairs = listOf(
@@ -920,6 +929,8 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
         private var spawnComplete = false
         private var spawnDelay = 40
         private lateinit var jitanCenter: Location
+
+        override fun getReviveLocation() = jitanCenter
 
         private fun toWorld(loc: Location) = Location(instance.world,
             jitanCenter.x + loc.x, loc.y, jitanCenter.z + loc.z)

@@ -368,7 +368,8 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
             return
         }
         val instance = activeInstances[pr.instanceId] ?: return
-        val spawn = instance.centerLocation.clone().add(instance.template.spawnOffset)
+        val spawn = instance.currentPhase?.getReviveLocation()
+            ?: instance.centerLocation.clone().add(instance.template.spawnOffset)
         player.teleport(spawn)
         player.health = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)!!.baseValue
         player.sendMessage("§a你已花费 ${"%.0f".format(pr.cost)} 铜钱复活！")

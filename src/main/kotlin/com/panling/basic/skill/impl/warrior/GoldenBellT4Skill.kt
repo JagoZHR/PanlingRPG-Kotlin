@@ -53,7 +53,7 @@ class GoldenBellT4Skill(private val plugin: PanlingBasic) :
         // 1. 计算反伤数值 (受到伤害的 20%)
         val incomingDamage = event.finalDamage // 获取最终伤害(计算防御后)还是原始伤害？通常反震是基于受到的实际伤害
         // 如果想要基于"原始伤害"，用 event.damage
-        val reflectDamage = incomingDamage * 0.2
+        val reflectDamage = incomingDamage * 3
 
         if (reflectDamage <= 0.1) return
 
