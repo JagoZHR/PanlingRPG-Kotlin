@@ -275,9 +275,9 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
 
         instance.leave(player)
 
-        // 人走光 → 立刻关闭，不等 20 tick
+        // 人走光 → 立刻关闭副本
         if (instance.players.isEmpty()) {
-            removeInstance(instanceId)
+            instance.stop()
         }
     }
 
@@ -382,9 +382,10 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
     private fun doLeave(player: Player, instanceId: String, instance: DungeonInstance) {
         playerInstanceMap.remove(player.uniqueId)
         instance.players.remove(player.uniqueId)
-        Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-            if (instance.players.isEmpty()) removeInstance(instanceId)
-        }, 20L)
+        // 人走光 → 立刻停止副本（取消 tick、结束阶段、清理）
+        if (instance.players.isEmpty()) {
+            instance.stop()
+        }
         // 击杀玩家触发正常重生（此时已移出副本，不会再拦截）
         player.health = 0.0
     }
