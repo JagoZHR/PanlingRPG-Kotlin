@@ -147,6 +147,16 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
                     leader.sendMessage("§c队员 ${member.name} 距离过远，无法开启副本！")
                     return
                 }
+                // 前置任务检查：每位队员都必须满足
+                if (template.requiredQuests.isNotEmpty()) {
+                    val hasQuest = template.requiredQuests.any {
+                        plugin.questManager.hasCompleted(member, it) || plugin.questManager.getActiveProgress(member, it) != null
+                    }
+                    if (!hasQuest) {
+                        leader.sendMessage("§c队员 ${member.name} 还没有完成进入此副本所需的前置任务！")
+                        return
+                    }
+                }
                 targetPlayers.add(member)
             }
         }
