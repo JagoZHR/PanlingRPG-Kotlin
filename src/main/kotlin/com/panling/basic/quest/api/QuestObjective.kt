@@ -1,5 +1,6 @@
 package com.panling.basic.quest.api
 
+import com.panling.basic.quest.QuestProgress
 import org.bukkit.Location
 import org.bukkit.entity.Player
 import org.bukkit.event.Event
@@ -34,4 +35,7 @@ interface QuestObjective {
     // 返回 null 表示该目标不支持导航
     val navigationLocation: Location?
         get() = null
+
+    /** 任务被接取时调用，让目标根据已完成的进度初始化。返回 true 表示进度已变更 */
+    fun onAccept(player: Player, progress: QuestProgress): Boolean = false
 }

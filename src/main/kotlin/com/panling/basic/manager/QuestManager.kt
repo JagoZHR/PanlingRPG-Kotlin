@@ -6,6 +6,7 @@ import com.panling.basic.api.PlayerRace
 import com.panling.basic.api.Reloadable
 import com.panling.basic.dungeon.DungeonCompleteEvent
 import com.panling.basic.quest.Quest
+import com.panling.basic.quest.QuestCompleteEvent
 import com.panling.basic.quest.QuestLoader
 import com.panling.basic.quest.QuestProgress
 import com.panling.basic.quest.impl.TalkToNpcObjective
@@ -50,12 +51,16 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
     }
 
     override fun reload() {
-        // 重新调用加载器
-        // 假设 QuestLoader 已迁移或兼容
+        // 重新加载任务注册表
+        playerQuests.clear()
         try {
             QuestLoader(plugin, this).loadAll()
         } catch (e: NoClassDefFoundError) {
             plugin.logger.warning("QuestLoader class not found yet.")
+        }
+        // 从磁盘重新载入所有在线玩家的任务进度
+        for (player in Bukkit.getOnlinePlayers()) {
+            loadPlayerData(player)
         }
     }
 
@@ -130,6 +135,9 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
             player.sendMessage("§6§l[任务完成] ${progress.quest.name}")
             player.playSound(player.location, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f)
 
+            // 触发 QUEST_COMPLETE 事件，供其他任务的 QUEST_COMPLETE 目标监听
+            Bukkit.getPluginManager().callEvent(QuestCompleteEvent(player, progress.quest.id))
+
             // 发放奖励
             for (reward in progress.quest.rewards) {
                 reward.give(player)
@@ -141,18 +149,17 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
                 showDialog(player, progress.quest.completeDialog)
             }
 
-            // 自动接取下一环任务
+            // 自动接取下一环任务（等完成对话播完再触发）
             val nextId = progress.quest.autoAcceptNext
             if (nextId != null) {
                 val nextQuest = questRegistry[nextId]
                 if (nextQuest != null && isQuestAvailable(player, nextQuest)) {
+                    val completeDelay = if (progress.quest.completeDialog.isNotEmpty())
+                        ((progress.quest.completeDialog.size - 1) * 40L) + 80L
+                    else 40L
                     plugin.server.scheduler.runTaskLater(plugin, Runnable {
                         acceptQuest(player, nextId)
-                        // 显示接取对话
-                        if (nextQuest.acceptDialog.isNotEmpty()) {
-                            showDialog(player, nextQuest.acceptDialog)
-                        }
-                    }, 40L) // 2 秒延迟，让完成提示先显示
+                    }, completeDelay)
                 }
             }
         }
@@ -200,7 +207,7 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
 
     // === 4. 玩家数据管理 ===
 
-    fun acceptQuest(player: Player, questId: String) {
+    fun acceptQuest(player: Player, questId: String, showDialog: Boolean = true) {
         val quest = questRegistry[questId] ?: return
 
         val list = playerQuests.getOrPut(player.uniqueId) { ArrayList() }
@@ -217,6 +224,24 @@ class QuestManager(private val plugin: PanlingBasic) : Listener, Reloadable {
         player.sendMessage("§a[接受任务] ${quest.name}")
         player.sendMessage("§7${quest.description}")
         player.playSound(player.location, Sound.ITEM_BOOK_PAGE_TURN, 1f, 1f)
+
+        // 显示接取对话（GiveQuestAction 已自己播过，这里跳过避免双重）
+        if (showDialog && quest.acceptDialog.isNotEmpty()) {
+            showDialog(player, quest.acceptDialog)
+        }
+
+        // 对话播完后才运行初始化检查，避免多个任务的对话混在一起
+        val dialogDelay = if (quest.acceptDialog.isNotEmpty()) ((quest.acceptDialog.size - 1) * 40L) + 80L else 0L
+        plugin.server.scheduler.runTaskLater(plugin, Runnable {
+            var initUpdated = false
+            quest.objectives.forEach { obj ->
+                if (obj.onAccept(player, newProgress)) initUpdated = true
+            }
+            if (initUpdated) {
+                checkCompletion(player, newProgress)
+                savePlayerData(player)
+            }
+        }, dialogDelay)
 
         savePlayerData(player)
     }

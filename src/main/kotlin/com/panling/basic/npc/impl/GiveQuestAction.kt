@@ -22,23 +22,21 @@ class GiveQuestAction(private val questId: String) : NpcAction {
             val dialogLines = quest.acceptDialog
 
             if (dialogLines.isEmpty()) {
-                // 无自定义对话：直接接取
                 qm.acceptQuest(player, questId)
                 player.removeMetadata("pl_dialog_active", plugin)
                 tryAutoCompleteAndChain(player, npc, plugin, qm)
             } else {
-                // 多轮对话
+                // 逐行播对话，最后一行后正式接取
                 var delay = 0L
                 for (line in dialogLines) {
                     Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                         player.sendMessage("§e[${npc.name}] §f$line")
                     }, delay)
-                    delay += 40L // 每行间隔 2 秒
+                    delay += 40L
                 }
 
-                // 最后一行后 2 秒，正式接取任务
                 Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                    qm.acceptQuest(player, questId)
+                    qm.acceptQuest(player, questId, false) // NPC 已播对话，不重复
                     player.removeMetadata("pl_dialog_active", plugin)
                     tryAutoCompleteAndChain(player, npc, plugin, qm)
                 }, delay)

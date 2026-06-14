@@ -10,6 +10,7 @@ import com.panling.basic.quest.impl.InteractBlockObjective
 import com.panling.basic.quest.impl.ItemReward
 import com.panling.basic.quest.impl.KillMobObjective
 import com.panling.basic.quest.impl.MoneyReward
+import com.panling.basic.quest.impl.QuestCompleteObjective
 import com.panling.basic.quest.impl.TalkToNpcObjective
 import org.bukkit.Bukkit
 import org.bukkit.Location
@@ -85,6 +86,19 @@ class QuestLoader(
             }
 
             DungeonCompleteObjective(id, dungeonId, desc, navLoc)
+        }
+
+        // --- 注册任务完成目标 ---
+        registry.registerObjective("QUEST_COMPLETE") { id, config ->
+            val questId = config.getString("quest_id") ?: "UNKNOWN"
+            val desc = config.getString("description") ?: "完成任务"
+
+            var navLoc: Location? = null
+            if (config.contains("location")) {
+                navLoc = parseLocation(config.getString("location"))
+            }
+
+            QuestCompleteObjective(id, questId, desc, navLoc, questManager)
         }
 
         // --- 注册方块交互目标 ---
