@@ -24,6 +24,8 @@ import org.bukkit.event.entity.EntityDamageEvent
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.NamespacedKey
 import org.bukkit.inventory.ItemStack
+import org.bukkit.potion.PotionEffectType
+import org.bukkit.util.Vector
 import org.bukkit.persistence.PersistentDataType
 import java.util.UUID
 import kotlin.math.cos
@@ -67,7 +69,7 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
     override fun createRewardConfig(instance: DungeonInstance) = RewardConfig(title = "§6[圣山] 四圣终试通过！", autoReward = true, autoRewardDelay = 100L, money = 2000.0)
 
     private fun createJitanPhase(instance: DungeonInstance, beast: String, onReturn: () -> Unit): AbstractDungeonPhase =
-        when (beast) { "qinglong" -> QinglongJitanPhase(instance, beast, onReturn); "zhuque" -> ZhuqueJitanPhase(instance, beast, onReturn); "baihu" -> BaihuJitanPhase(instance, beast, onReturn); else -> JitanPhase(instance, beast, onReturn) }
+        when (beast) { "qinglong" -> QinglongJitanPhase(instance, beast, onReturn); "zhuque" -> ZhuqueJitanPhase(instance, beast, onReturn); "baihu" -> BaihuJitanPhase(instance, beast, onReturn); "xuanwu" -> XuanwuJitanPhase(instance, beast, onReturn); else -> JitanPhase(instance, beast, onReturn) }
 
     // ==================== MainPhase (unchanged) ====================
     inner class MainPhase(instance: DungeonInstance, private val clearedBeasts: MutableSet<String>) : AbstractDungeonPhase(plugin, instance) {
@@ -685,6 +687,177 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
             chunkTickets.clear()
             zombies.forEach { if (it.isValid) it.remove() }; zombies.clear()
             guards.forEach { if (it.isValid) it.remove() }; guards.clear()
+        }
+    }
+
+    // ==================== XuanwuJitanPhase ====================
+    // data classes for XuanwuJitanPhase
+    private data class LineTurtle(val entity: LivingEntity, val a: Location, val b: Location, var toB: Boolean = true)
+    private data class BouncyTurtle(val entity: LivingEntity, var vel: Vector)
+
+    inner class XuanwuJitanPhase(
+        instance: DungeonInstance, private val beast: String, private val onReturn: () -> Unit
+    ) : AbstractDungeonPhase(plugin, instance) {
+
+        private val lineTurtles = mutableListOf<LineTurtle>()
+        private var bouncy: BouncyTurtle? = null
+        private val silverfish = mutableListOf<LivingEntity>()
+        private val spawnedMobs = mutableListOf<LivingEntity>()
+        private var isFinished = false
+        private lateinit var jitanCenter: Location
+        private lateinit var center: Location
+
+        // 6 对线坐标
+        private val linePairs = listOf(
+            (Location(null, 135.5, 102.0, -108.2) to Location(null, 135.5, 102.0, -92.2)),
+            (Location(null, 125.9, 100.5, -109.5) to Location(null, 125.5, 100.0, -91.7)),
+            (Location(null, 116.1, 99.0, -92.2) to Location(null, 116.5, 99.0, -110.3)),
+            (Location(null, 106.3, 98.0, -84.3) to Location(null, 105.6, 98.0, -116.6)),
+            (Location(null, 133.3, 102.0, -92.1) to Location(null, 138.7, 102.0, -91.8)),
+            (Location(null, 133.3, 102.0, -108.8) to Location(null, 138.7, 102.0, -108.7))
+        )
+        private val centerLoc = Location(null, 149.7, 102.0, -100.5)
+
+        override fun start() {
+            jitanCenter = instance.centerLocation.clone().add(0.0, 0.0, 3000.0)
+            center = toWorld(centerLoc)
+            instance.broadcast("§3玄武§e的幻境已然展开 —— 穿越玄龟之阵，抵达中心！")
+            instance.broadcastSound(Sound.ENTITY_ENDERMAN_TELEPORT)
+            for (uuid in instance.players) Bukkit.getPlayer(uuid)?.teleport(jitanCenter.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4))
+
+            // 从 marked_points 读取 xuanwupoint 点位附近刷怪
+            val waterMobs = listOf("abyssal_drowned", "abyssal_guardian", "abyssal_bogged", "tortoise_shell_warden")
+            // 从 marked_points 读取的 xuanwupoint 点位，硬编码在此
+            val xuanwuPoints = listOf(
+                Location(null, 37.5, 67.0, -7.3),
+                Location(null, 33.2, 57.6, -34.6),
+                Location(null, 48.6, 73.3, -63.1),
+                Location(null, 64.7, 68.1, -43.2),
+                Location(null, 79.5, 76.0, -23.2)
+            )
+            for (loc in xuanwuPoints) {
+                val pointLoc = toWorld(loc)
+                val count = 10 + Random.nextInt(6) // 10-15
+                for (j in 0 until count) {
+                    val offset = Location(null, (Random.nextDouble()-0.5)*12, 0.0, (Random.nextDouble()-0.5)*12)
+                    val spawnLoc = pointLoc.clone().add(offset.x, offset.y, offset.z).also {
+                        // 找地面：往下扫描到固体方块
+                        val block = it.block
+                        if (!block.type.isSolid && !block.type.isAir) {
+                            var y = it.blockY
+                            while (y > it.world!!.minHeight && !Location(it.world, it.x, y.toDouble(), it.z).block.type.isSolid) y--
+                            it.y = y + 1.0
+                        }
+                    }
+                    val m = plugin.mobManager.spawnMob(spawnLoc, waterMobs.random()) ?: continue
+                    spawnedMobs.add(m)
+                }
+            }
+
+            // 6 对线龟
+            for ((a, b) in linePairs) {
+                val wa = toWorld(a); val wb = toWorld(b)
+                val t = spawnTurtle(wa)
+                lineTurtles.add(LineTurtle(t, wa, wb))
+            }
+            // 弹球龟
+            val bt = spawnTurtle(center)
+            bouncy = BouncyTurtle(bt, Vector(Random.nextDouble()-0.5, 0.0, Random.nextDouble()-0.5).normalize().multiply(1.2))
+
+            // 蠹虫守卫（有 AI，慢速）
+            val count = instance.players.size * 2
+            for (i in 0 until count) {
+                val angle = Random.nextDouble() * Math.PI * 2; val dist = Random.nextDouble() * 10
+                val loc = center.clone().add(cos(angle) * dist, 0.0, sin(angle) * dist)
+                val sf = instance.world.spawnEntity(loc, EntityType.SILVERFISH) as Silverfish
+                sf.customName(Component.text("§3玄龟幼体")); sf.isCustomNameVisible = true
+                sf.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 999999.0; sf.health = 999999.0
+                sf.getAttribute(Attribute.ATTACK_DAMAGE)?.baseValue = 0.0
+                sf.getAttribute(Attribute.MOVEMENT_SPEED)?.baseValue = 0.1
+                sf.lootTable = null; sf.isPersistent = true; sf.removeWhenFarAway = false
+                silverfish.add(sf)
+            }
+        }
+
+        private fun toWorld(loc: Location) = Location(instance.world, jitanCenter.x + loc.x, loc.y, jitanCenter.z + loc.z)
+
+        private fun spawnTurtle(loc: Location): LivingEntity {
+            val t = instance.world.spawnEntity(loc, EntityType.TURTLE) as Turtle
+            t.customName(Component.text("§3玄龟")); t.isCustomNameVisible = true
+            t.setAI(false); t.isSilent = true
+            t.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 999999.0; t.health = 999999.0
+            try { t.getAttribute(Attribute.SCALE)?.baseValue = 2.0 } catch (_: Exception) {}
+            t.lootTable = null; t.isPersistent = true; t.removeWhenFarAway = false
+            return t
+        }
+
+        override fun onTick() {
+            if (isFinished) return
+
+            val hitSet = mutableSetOf<UUID>()
+            val knockStrength = 4.0; val hitDamage = 20.0
+
+            // 移动线龟 + 碰撞
+            for (lt in lineTurtles) {
+                if (!lt.entity.isValid) continue
+                val target = if (lt.toB) lt.b else lt.a
+                val dir = target.toVector().subtract(lt.entity.location.toVector())
+                if (dir.lengthSquared() < 1.0) { lt.toB = !lt.toB; continue }
+                lt.entity.teleport(lt.entity.location.add(dir.normalize().multiply(0.72)))
+                // 碰撞检测
+                for (uuid in instance.players) {
+                    if (uuid in hitSet) continue
+                    val p = Bukkit.getPlayer(uuid) ?: continue
+                    if (p.location.distanceSquared(lt.entity.location) < 4.0) {
+                        hitSet.add(uuid); p.damage(hitDamage)
+                        val away = p.location.toVector().subtract(center.toVector()).normalize()
+                        p.velocity = away.multiply(knockStrength).setY(0.3)
+                    }
+                }
+            }
+
+            // 弹球龟
+            val bt = bouncy
+            if (bt != null && bt.entity.isValid) {
+                val next = bt.entity.location.clone().add(bt.vel)
+                // 碰到方块就反射
+                if (next.block.type.isSolid || next.clone().add(0.0, 1.0, 0.0).block.type.isSolid) {
+                    bt.vel = bt.vel.multiply(-1.0)
+                }
+                bt.entity.teleport(bt.entity.location.add(bt.vel))
+                // 碰撞
+                for (uuid in instance.players) {
+                    if (uuid in hitSet) continue
+                    val p = Bukkit.getPlayer(uuid) ?: continue
+                    if (p.location.distanceSquared(bt.entity.location) < 4.0) {
+                        hitSet.add(uuid); p.damage(hitDamage)
+                        val away = p.location.toVector().subtract(center.toVector()).normalize()
+                        p.velocity = away.multiply(knockStrength).setY(0.3)
+                    }
+                }
+            }
+
+            // 胜利条件：半数人到中心
+            var atCenter = 0
+            for (uuid in instance.players) {
+                val p = Bukkit.getPlayer(uuid) ?: continue
+                if (p.location.distanceSquared(center) < 9.0) atCenter++
+            }
+            if (atCenter >= (instance.players.size + 1) / 2) {
+                isFinished = true
+                instance.broadcast("§3§l半数勇士已抵达中心！玄武幻境破解！")
+                instance.broadcastSound(Sound.UI_TOAST_CHALLENGE_COMPLETE)
+                val mc = instance.centerLocation.clone()
+                for (uuid in instance.players) Bukkit.getPlayer(uuid)?.teleport(mc.clone().add((Random.nextDouble()-0.5)*4, 2.0, (Random.nextDouble()-0.5)*4))
+                Bukkit.getScheduler().runTaskLater(plugin, Runnable { onReturn() }, 40L)
+            }
+        }
+
+        override fun end() {
+            lineTurtles.forEach { if (it.entity.isValid) it.entity.remove() }; lineTurtles.clear()
+            bouncy?.let { if (it.entity.isValid) it.entity.remove() }; bouncy = null
+            silverfish.forEach { if (it.isValid) it.remove() }; silverfish.clear()
+            spawnedMobs.forEach { if (it.isValid) it.remove() }; spawnedMobs.clear()
         }
     }
 }
