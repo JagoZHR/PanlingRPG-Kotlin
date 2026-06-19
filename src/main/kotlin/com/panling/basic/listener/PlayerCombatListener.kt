@@ -410,13 +410,23 @@ class PlayerCombatListener(
                 attackerPlayer.health = min(maxHealth, attackerPlayer.health + heal)
             }
 
-            // 3. 流派攻击特效
+            // 3. 流派攻击特效（横扫RPG化、残损血盾等）
+            subClassManager.getStrategy(attackerPlayer)?.onAttackEffect(
+                attackerPlayer, event, dataManager.getSlotHoldDuration(attackerPlayer)
+            )
             subClassManager.getStrategy(attackerPlayer)?.onAttack(
                 attackerPlayer, victim, dataManager.getSlotHoldDuration(attackerPlayer)
             )
         }
 
         if (finalDamage > 0 && victim is Player) {
+            // 流派受击回调（在技能触发器之前，允许策略接管伤害）
+            val victimStrategy = subClassManager.getStrategy(victim)
+            if (victimStrategy.onDamaged(victim, event, dataManager.getSlotHoldDuration(victim))) {
+                event.isCancelled = true
+                event.damage = 0.0
+            }
+
             // 触发受击技能 (装备上的 DAMAGED 触发器)
             skillManager.triggerItemSkill(victim, SkillTrigger.DAMAGED, event)
 
@@ -512,5 +522,11 @@ class PlayerCombatListener(
         pdc.set(BasicKeys.ATTR_CRIT_DMG, PersistentDataType.DOUBLE, statCalculator.getPlayerTotalStat(player, BasicKeys.ATTR_CRIT_DMG))
         pdc.set(BasicKeys.ATTR_ARMOR_PEN, PersistentDataType.DOUBLE, statCalculator.getPlayerTotalStat(player, BasicKeys.ATTR_ARMOR_PEN))
         pdc.set(BasicKeys.ATTR_LIFE_STEAL, PersistentDataType.DOUBLE, statCalculator.getPlayerTotalStat(player, BasicKeys.ATTR_LIFE_STEAL))
+    }
+
+    // [血债] 死亡时清空血债
+    @EventHandler
+    fun onPlayerDeath(event: PlayerDeathEvent) {
+        subClassManager.clearBloodDebt(event.entity)
     }
 }

@@ -41,4 +41,7 @@ interface SubClassStrategy {
 
     // 获取游侠的附魔加成策略
     fun getRangerEnchantBonus(player: Player, holdSeconds: Double): IntArray = intArrayOf(0, 0, 0)
+
+    // [NEW] 受到伤害时回调。返回 true 表示事件已被策略接管（调用方应取消伤害）。
+    fun onDamaged(player: Player, event: EntityDamageByEntityEvent, holdSeconds: Double): Boolean = false
 }

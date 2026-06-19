@@ -28,6 +28,7 @@ import org.bukkit.potion.PotionEffectType
 import java.util.*
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 class SubClassManager(
     private val plugin: JavaPlugin,
@@ -46,8 +47,11 @@ class SubClassManager(
     // 通知状态缓存
     private val fullStackNotified = HashMap<UUID, Boolean>()
 
-    // [NEW] 金钟满层生命恢复追踪
-    private val goldenBellRegenApplied = HashSet<UUID>()
+    // [NEW] 血债追踪：玩家UUID → 当前血债值 (破军)
+    private val bloodDebt = HashMap<UUID, Double>()
+
+    // [NEW] 前一 tick 的流派，用于检测流派切换时清算血债
+    private val prevSubClass = HashMap<UUID, PlayerSubClass>()
 
     companion object {
         private const val META_AGGRO_OWNER = "pl_aggro_owner"
@@ -85,6 +89,20 @@ class SubClassManager(
         val activeSlot = dataManager.getActiveSlot(player)
         val heldTime = dataManager.getSlotHoldDuration(player)
 
+        // [血债] 流派切换清算：离开破军时一次性造成全部血债伤害
+        val prev = prevSubClass[player.uniqueId]
+        if (prev == PlayerSubClass.PO_JUN && currentSub != PlayerSubClass.PO_JUN) {
+            val debt = bloodDebt.remove(player.uniqueId)
+            if (debt != null && debt > 0) {
+                player.setMetadata("pl_blood_debt_bleed", FixedMetadataValue(plugin, true))
+                player.damage(debt)
+                player.removeMetadata("pl_blood_debt_bleed", plugin)
+                player.sendActionBar(Component.empty())
+                player.sendMessage("§c[血债] 流派变更，血债一次性清算：§4${String.format("%.1f", debt)} §c伤害")
+            }
+        }
+        prevSubClass[player.uniqueId] = currentSub
+
         if (heldTime < 1.0) {
             fullStackNotified.remove(player.uniqueId)
         }
@@ -96,15 +114,52 @@ class SubClassManager(
             fullStackNotified[player.uniqueId] = true
         }
 
-        // [NEW] 金钟满层生命恢复 II
-        if (currentSub == PlayerSubClass.GOLDEN_BELL && heldTime >= 10.0) {
-            goldenBellRegenApplied.add(player.uniqueId)
-            player.addPotionEffect(PotionEffect(
-                PotionEffectType.REGENERATION, 40, 1, true, false
-            ))
-        } else if (goldenBellRegenApplied.remove(player.uniqueId)) {
-            player.removePotionEffect(PotionEffectType.REGENERATION)
+        // [NEW] 金钟满层回血：每秒恢复已损失血量的 15%
+        if (currentSub == PlayerSubClass.GOLDEN_BELL && heldTime >= 10.0 && player.health > 0) {
+            val maxHp = player.getAttribute(Attribute.MAX_HEALTH)?.value ?: 20.0
+            val missing = maxHp - player.health
+            if (missing > 0.5) {
+                val heal = missing * 0.15
+                player.health = min(maxHp, player.health + heal)
+                // 1 tick REGENERATION VI 仅做视觉（血条白边闪烁），不依赖其回血
+                player.addPotionEffect(PotionEffect(
+                    PotionEffectType.REGENERATION, 2, 5, true, false
+                ))
+            }
         }
+
+        // [NEW] 破军血债流血：每秒受到血债的 10%
+        if (currentSub == PlayerSubClass.PO_JUN && heldTime >= 10.0) {
+            val debt = bloodDebt[player.uniqueId] ?: 0.0
+            if (debt > 0) {
+                val bleed = max(1.0, debt * 0.1)
+                val newDebt = debt - bleed
+                if (newDebt <= 0.0) {
+                    bloodDebt.remove(player.uniqueId)
+                    player.sendActionBar(Component.empty())  // 清空 actionbar
+                } else {
+                    bloodDebt[player.uniqueId] = newDebt
+                }
+                // 标记为血债伤害，防止 onDamaged 递归拦截
+                player.setMetadata("pl_blood_debt_bleed", FixedMetadataValue(plugin, true))
+                player.damage(bleed)
+                player.noDamageTicks = 0  // 取消无敌帧，防止外部攻击被吞
+                player.removeMetadata("pl_blood_debt_bleed", plugin)
+
+                // 血债值持续显示在 actionbar（低优先级，可被其他消息覆盖）
+                val maxHp = player.getAttribute(Attribute.MAX_HEALTH)?.value ?: 20.0
+                val pct = (newDebt / maxHp * 100).toInt()
+                val barLen = (pct / 10).coerceIn(0, 15)
+                val bar = "§4${"█".repeat(barLen)}§8${"█".repeat(15 - barLen)}"
+                player.sendActionBar(Component.text("§c血债 §7${pct}% $bar").color(NamedTextColor.GRAY))
+            }
+        }
+    }
+
+    // [血债] 公有清理方法，供死亡事件等外部调用
+    fun clearBloodDebt(player: Player) {
+        bloodDebt.remove(player.uniqueId)
+        player.sendActionBar(Component.empty())
     }
 
     // ========================================================================
@@ -257,7 +312,7 @@ class SubClassManager(
         }
 
         // === 1. 破军 (PO_JUN) ===
-        // 机制：线性增强 (吸血)
+        // 机制：低血增伤 + 血债系统
         // 惩罚：防御力线性恢复 (-50% -> -20%)
         strategies[PlayerSubClass.PO_JUN] = object : SubClassStrategy {
             override fun modifyAttackDamage(player: Player, damage: Double, seconds: Double): Double {
@@ -267,26 +322,49 @@ class SubClassManager(
                 return damage * (1.0 + missingPercent)
             }
 
-            override fun modifyLifeSteal(player: Player, original: Double, seconds: Double): Double {
-                val maxHp = player.getAttribute(Attribute.MAX_HEALTH)?.value ?: 20.0
-                val currentHp = player.health
-                val ratio = currentHp / maxHp
-                val baseRate = when {
-                    ratio > 0.5 -> 0.003
-                    ratio >= 0.2 -> 0.007
-                    else -> 0.015
-                }
-                val cdr = statCalculator.getPlayerTotalStat(player, BasicKeys.ATTR_CDR)
-                val effectiveSeconds = min(10.0, seconds * (1.0 + cdr))
-                return original + (effectiveSeconds * baseRate)
-            }
-
             override fun modifyDefense(player: Player, originalDefense: Double, holdSeconds: Double): Double {
-                // 刚切换：0.5 (减少50%)
-                // 10秒后：0.8 (减少20%)
-                // 线性过渡
                 val factor = lerp(holdSeconds, 0.5, 0.8)
                 return originalDefense * factor
+            }
+
+            // [血债] 残损 + 血盾：满层时每次攻击消耗 10% 生命，获得 8% 吸收盾
+            override fun onAttackEffect(player: Player, event: EntityDamageByEntityEvent, seconds: Double) {
+                if (seconds < 10.0) return
+                val maxHp = player.getAttribute(Attribute.MAX_HEALTH)?.value ?: 20.0
+                // 残损：消耗 10% 最大生命值，最低到 20%（不会回复血量）
+                val cost = maxHp * 0.1
+                val afterCost = player.health - cost
+                if (afterCost >= maxHp * 0.2) {
+                    player.health = afterCost
+                } else if (player.health > maxHp * 0.2) {
+                    player.health = maxHp * 0.2  // 刚好扣到 20%
+                }
+                // 血盾：ABSORPTION 药水效果，1级=4HP，取最接近 8% 生命的等级
+                val rawAbsorb = maxHp * 0.08
+                val level = (rawAbsorb / 4.0).roundToInt().coerceAtLeast(1)
+                player.addPotionEffect(PotionEffect(
+                    PotionEffectType.ABSORPTION, 200, level - 1, true, false
+                ))
+            }
+
+            // [血债] 受击吸收：非血债伤害不扣血，全部计入血债
+            override fun onDamaged(player: Player, event: EntityDamageByEntityEvent, holdSeconds: Double): Boolean {
+                if (holdSeconds < 10.0) return false
+                // 血债流血自伤不拦截
+                if (player.hasMetadata("pl_blood_debt_bleed")) return false
+                val dmg = event.finalDamage
+                if (dmg <= 0) return false
+                val maxHp = player.getAttribute(Attribute.MAX_HEALTH)?.value ?: 20.0
+                val current = bloodDebt.getOrDefault(player.uniqueId, 0.0)
+                val newDebt = current + dmg
+                if (newDebt > maxHp * 1.5) {
+                    // 崩解：血债超上限 → 立即死亡，清空血债
+                    bloodDebt.remove(player.uniqueId)
+                    player.health = 0.0
+                } else {
+                    bloodDebt[player.uniqueId] = newDebt
+                }
+                return true // 接管事件，取消原伤害
             }
         }
 
