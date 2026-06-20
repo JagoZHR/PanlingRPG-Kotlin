@@ -339,6 +339,14 @@ object LoreManager {
             } catch (ignored: Exception) {}
             lore.add(Component.text("套装: $setName").color(NamedTextColor.DARK_PURPLE).decoration(TextDecoration.ITALIC, false))
         }
+        val setRegion = pdc.get(BasicKeys.ITEM_SET_REGION, PersistentDataType.STRING)
+        if (setRegion != null) {
+            var regionName = setRegion
+            try {
+                plugin.setManager?.let { regionName = it.getSetName(setRegion) }
+            } catch (ignored: Exception) {}
+            lore.add(Component.text("地区: $regionName").color(NamedTextColor.DARK_AQUA).decoration(TextDecoration.ITALIC, false))
+        }
 
         meta.lore(lore)
         meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_ENCHANTS)

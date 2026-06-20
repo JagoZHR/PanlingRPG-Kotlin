@@ -149,11 +149,14 @@ class SetManager(private val plugin: PanlingBasic) : Reloadable {
      */
     fun rebuildItemCache(itemManager: ItemManager) {
         setItemsCache.clear()
-        // 遍历所有物品，检查其是否属于某个套装
         for (itemId in itemManager.itemIds) {
             val setId = itemManager.getItemSetId(itemId)
             if (setId != null && sets.containsKey(setId)) {
                 setItemsCache.computeIfAbsent(setId) { ArrayList() }.add(itemId)
+            }
+            val setRegion = itemManager.getItemSetRegion(itemId)
+            if (setRegion != null && sets.containsKey(setRegion)) {
+                setItemsCache.computeIfAbsent(setRegion) { ArrayList() }.add(itemId)
             }
         }
     }

@@ -351,6 +351,11 @@ class MobManager(
             )
         }
 
+        // 防止疣猪兽在主世界僵尸化
+        if (entity is org.bukkit.entity.Hoglin) {
+            entity.setImmuneToZombification(true)
+        }
+
         triggerSkills(entity, SkillTrigger.SPAWN, null)
         return entity
     }

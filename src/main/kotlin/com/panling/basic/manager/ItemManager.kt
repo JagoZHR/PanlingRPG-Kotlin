@@ -123,6 +123,10 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
         return templates[itemId]?.setId
     }
 
+    fun getItemSetRegion(itemId: String): String? {
+        return templates[itemId]?.setRegion
+    }
+
     fun isItemAllowedForClass(itemId: String, pc: PlayerClass): Boolean {
         val tmpl = templates[itemId] ?: return false
         // FABAO 和 ACCESSORY 不检查武器材质，由 StatCalculator 中独立分支验证
@@ -215,6 +219,7 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
         val customModelData: Int? = if (section.contains("model_data")) section.getInt("model_data") else null
         val cooldown: Double? = if (section.contains("cooldown")) section.getDouble("cooldown") else null
         val setId: String? = section.getString("set")
+        val setRegion: String? = section.getString("set_region")
 
         val elementValue: Int? = if (section.contains("element_value")) section.getInt("element_value") else null
         val skillCost: Int? = if (section.contains("skill_cost")) section.getInt("skill_cost") else null
@@ -420,6 +425,7 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
             pdc.setOrRemove(BasicKeys.FEATURE_REQ_CLASS, PersistentDataType.STRING, reqClass)
             pdc.setOrRemove(BasicKeys.ITEM_TYPE_TAG, PersistentDataType.STRING, itemType)
             pdc.setOrRemove(BasicKeys.ITEM_SET_ID, PersistentDataType.STRING, setId)
+            pdc.setOrRemove(BasicKeys.ITEM_SET_REGION, PersistentDataType.STRING, setRegion)
 
             if ((this.moneyValue ?: 0.0) > 0) pdc.set(BasicKeys.ITEM_MONEY_VALUE, PersistentDataType.DOUBLE, this.moneyValue!!)
             if ((this.level ?: 0) > 0) pdc.set(BasicKeys.FEATURE_REQ_LEVEL, PersistentDataType.INTEGER, this.level!!) else pdc.remove(BasicKeys.FEATURE_REQ_LEVEL)

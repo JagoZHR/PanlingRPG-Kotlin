@@ -96,6 +96,7 @@ object BasicKeys {
     val ITEM_RARITY_WEIGHT = key("pl_item_rarity_w")
     val ITEM_DESC = key("pl_item_desc")
     val ITEM_SET_ID = key("pl_item_set_id")
+    val ITEM_SET_REGION = key("pl_item_set_region")
     val ITEM_OWNER = key("pl_item_owner")
     val ITEM_MODEL = key("pl_item_model")
     val ITEM_EQUIPPABLE = key("pl_item_equippable")

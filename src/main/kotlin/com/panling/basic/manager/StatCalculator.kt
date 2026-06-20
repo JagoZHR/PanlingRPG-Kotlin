@@ -158,10 +158,14 @@ class StatCalculator(
                 )
             }
 
-            // 统计套装
+            // 统计套装（职业套装 + 地区套装）
             val setId = pdc.get(BasicKeys.ITEM_SET_ID, PersistentDataType.STRING)
             if (setId != null) {
                 setCounts.merge(setId, 1, Integer::sum)
+            }
+            val setRegion = pdc.get(BasicKeys.ITEM_SET_REGION, PersistentDataType.STRING)
+            if (setRegion != null) {
+                setCounts.merge(setRegion, 1, Integer::sum)
             }
         }
 
@@ -382,11 +386,12 @@ class StatCalculator(
     }
 
     fun getSetPieceCount(player: Player, setId: String): Int {
-        val items = getAllActiveItems(player) // 这里也会利用缓存
+        val items = getAllActiveItems(player)
         var count = 0
         for (item in items) {
-            val id = item.itemMeta?.persistentDataContainer?.get(BasicKeys.ITEM_SET_ID, PersistentDataType.STRING)
-            if (setId == id) count++
+            val pdc = item.itemMeta?.persistentDataContainer ?: continue
+            if (setId == pdc.get(BasicKeys.ITEM_SET_ID, PersistentDataType.STRING)) count++
+            else if (setId == pdc.get(BasicKeys.ITEM_SET_REGION, PersistentDataType.STRING)) count++
         }
         return count
     }
