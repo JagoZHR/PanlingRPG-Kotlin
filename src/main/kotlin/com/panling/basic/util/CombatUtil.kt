@@ -117,7 +117,7 @@ object CombatUtil {
         // 1. 魔法伤害优先
         if (player.hasMetadata("pl_casting_skill") || player.hasMetadata("pl_magic_damage")) {
             snap.magicDamage = event.damage
-            snap.magicPen = statCalc.getPlayerTotalStat(player, BasicKeys.ATTR_MAGIC_PEN)
+            snap.magicPen = statCalc.getPlayerTotalStat(player, BasicKeys.ATTR_ARMOR_PEN)
             snap.critRate = statCalc.getPlayerTotalStat(player, BasicKeys.ATTR_CRIT_RATE)
             snap.critDmg = statCalc.getPlayerTotalStat(player, BasicKeys.ATTR_CRIT_DMG)
             snap.lifeSteal = statCalc.getPlayerTotalStat(player, BasicKeys.ATTR_LIFE_STEAL)

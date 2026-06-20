@@ -38,10 +38,10 @@ enum class PlayerRace(
         0.01, 0.001, "暴击几率"),
 
     // === 5. 战神族 (无坚不摧) ===
-    // 效果：物理穿透 + 法术穿透
-    // 数值：基础 2.0 + 每级 0.3 -> 100级时 +32 双穿
-    WAR_GOD("战神族", "§4", listOf(BasicKeys.ATTR_ARMOR_PEN, BasicKeys.ATTR_MAGIC_PEN),
-        2.0, 0.3, "双重穿透"),
+    // 效果：护甲穿透（合并后双倍补偿）
+    // 数值：基础 4.0 + 每级 0.6 -> 100级时 +64 护甲穿透
+    WAR_GOD("战神族", "§4", listOf(BasicKeys.ATTR_ARMOR_PEN),
+        4.0, 0.6, "护甲穿透"),
 
     NONE("未选择", "§7", emptyList(), 0.0, 0.0, "");
 

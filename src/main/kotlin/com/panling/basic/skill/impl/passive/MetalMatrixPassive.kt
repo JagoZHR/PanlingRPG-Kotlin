@@ -52,7 +52,7 @@ class MetalMatrixPassive(plugin: PanlingBasic) : AbstractSkill("METAL_MATRIX", "
         attacker.persistentDataContainer.set(cdKey, PersistentDataType.LONG, now)
 
         val center = target.location.clone()
-        val skillVal = pl.statCalculator.getPlayerTotalStat(attacker, BasicKeys.ATTR_SKILL_DAMAGE)
+        val skillVal = pl.statCalculator.getPlayerTotalStat(attacker, BasicKeys.ATTR_PHYSICAL_DAMAGE)
         val isSupport = pl.playerDataManager.getArrayStance(attacker) == ArrayStance.SUPPORT
 
         // 标记 AOE 进行中

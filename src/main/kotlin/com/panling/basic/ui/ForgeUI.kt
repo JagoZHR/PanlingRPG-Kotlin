@@ -363,7 +363,7 @@ class ForgeUI(private val manager: ForgeManager) {
 
     companion object {
         fun statDisplay(short: String): String = when (short) {
-            "phys" -> "物理强度"; "def" -> "物理防御"; "hp" -> "生命"
+            "phys" -> "进攻属性"; "def" -> "物理防御"; "hp" -> "生命"
             "speed" -> "速度"; "pen" -> "穿透"; "crit" -> "暴击率"
             "critdmg" -> "暴击伤害"; "cdr" -> "冷却"; "lifesteal" -> "生命偷取"
             "kb" -> "击退抗性"; else -> short

@@ -306,9 +306,12 @@ class MenuManager(
         lore.add(Component.text("§7----------------").decoration(TextDecoration.ITALIC, false))
 
         // 强制显示所有RPG属性 (已修改为保留小数)
+        // 过滤掉不需要显示的属性 (合并进进攻属性的 skill，合并进防御的 mdef，以及速度/生命)
         for (key in BasicKeys.ALL_STATS) {
-            // [新增] 过滤掉不需要在此处显示的属性 (速度和生命)
-            if (key == BasicKeys.ATTR_MOVE_SPEED || key == BasicKeys.ATTR_MAX_HEALTH) {
+            if (key == BasicKeys.ATTR_MOVE_SPEED || key == BasicKeys.ATTR_MAX_HEALTH
+                || key == BasicKeys.ATTR_SKILL_DAMAGE || key == BasicKeys.ATTR_MAGIC_DEFENSE
+                || key == BasicKeys.ATTR_MAGIC_PEN
+                || key == BasicKeys.ATTR_SKILL_PERCENT || key == BasicKeys.ATTR_MAGIC_PEN_PERCENT) {
                 continue
             }
             val `val` = statCalculator.getPlayerTotalStat(player, key)

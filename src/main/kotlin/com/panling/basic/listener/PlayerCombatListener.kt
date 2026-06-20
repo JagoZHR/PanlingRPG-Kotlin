@@ -500,7 +500,7 @@ class PlayerCombatListener(
         if (status != StatCalculator.STATUS_ACTIVE && status != StatCalculator.STATUS_FABAO_ACTIVE) return
 
         val skillId = pdc.get(key, PersistentDataType.STRING) ?: return
-        val power = statCalculator.getPlayerTotalStat(player, BasicKeys.ATTR_SKILL_DAMAGE)
+        val power = statCalculator.getPlayerTotalStat(player, BasicKeys.ATTR_PHYSICAL_DAMAGE)
 
         val ctx = SkillContext(
             player, null, item, projectile, player.location, power, trigger

@@ -269,6 +269,45 @@ class PatchEmbedUI {
 
             val eqIcon = eq.clone()
             val em = eqIcon.itemMeta
+
+            // 构建贴片加成汇总 lore
+            val lore = ArrayList<Component>()
+            if (patches.isNotEmpty()) {
+                // 按 stat 聚合贴片百分比
+                val patchByStat = HashMap<String, Double>()
+                for (p in patches) {
+                    patchByStat[p.stat] = (patchByStat[p.stat] ?: 0.0) + p.pct
+                }
+
+                val pdc = eq.itemMeta?.persistentDataContainer
+                lore.add(Component.text("§6━━ 贴片加成 ━━").decoration(TextDecoration.ITALIC, false))
+
+                for ((stat, totalPct) in patchByStat) {
+                    val pdcKey = BasicKeys.SHORT_NAME_MAP[stat]
+                    val baseValue = if (pdcKey != null && pdc != null)
+                        pdc.get(pdcKey, PersistentDataType.DOUBLE) ?: 0.0
+                    else 0.0
+                    val bonusAmount = baseValue * totalPct
+                    val displayName = ForgeUI.statDisplay(stat)
+                    val pctDisplay = (totalPct * 100).toInt()
+
+                    // 百分比属性（暴击/冷却等）：bonus 也按百分比显示
+                    val isPercentStat = BasicKeys.STAT_METADATA[pdcKey]?.isPercent == true
+                    val bonusStr = if (isPercentStat) {
+                        String.format("%.1f%%", bonusAmount * 100)
+                    } else {
+                        val raw = String.format("%.1f", bonusAmount)
+                        if (raw.endsWith(".0")) raw.substring(0, raw.length - 2) else raw
+                    }
+
+                    lore.add(Component.text("§b$displayName：${pctDisplay}%（+${bonusStr}）")
+                        .decoration(TextDecoration.ITALIC, false))
+                }
+            } else {
+                lore.add(Component.text("§7无贴片加成").decoration(TextDecoration.ITALIC, false))
+            }
+
+            em.lore(lore)
             em.displayName(Component.text("§e$eqName").decoration(TextDecoration.BOLD, true).decoration(TextDecoration.ITALIC, false))
             eqIcon.itemMeta = em; inv.setItem(rowIdx * 9, eqIcon)
 

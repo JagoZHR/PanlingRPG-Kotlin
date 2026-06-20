@@ -116,7 +116,7 @@ class SpiritAttachmentUI(private val manager: SpiritAttachmentManager) {
             "phys_pct", "def_pct", "hp_pct", "pen_pct", "skill_pct")
 
         private fun statDisplayName(short: String): String = when (short) {
-            "phys" -> "物理强度"
+            "phys" -> "进攻属性"
             "def" -> "物理防御"
             "hp" -> "生命上限"
             "speed" -> "移动速度"
@@ -128,7 +128,7 @@ class SpiritAttachmentUI(private val manager: SpiritAttachmentManager) {
             "kb" -> "击退抗性"
             "skill" -> "法术强度"
             "mdef" -> "法术防御"
-            "mpen" -> "法术穿透"
+            "pen" -> "护甲穿透"
             "range" -> "技能范围"
             else -> short
         }

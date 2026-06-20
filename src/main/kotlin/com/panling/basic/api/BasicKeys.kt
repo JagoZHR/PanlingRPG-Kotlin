@@ -57,14 +57,14 @@ object BasicKeys {
     }
 
     // --- 基础属性 (Base Attributes) ---
-    val ATTR_PHYSICAL_DAMAGE = reg("phys", "pl_attr_physical", "物理强度", false)
+    val ATTR_PHYSICAL_DAMAGE = reg("phys", "pl_attr_physical", "进攻属性", false)
     val ATTR_SKILL_DAMAGE    = reg("skill", "pl_attr_skill", "法术强度", false)
     val ATTR_DEFENSE         = reg("def", "pl_attr_defense", "物理防御", false)
     val ATTR_MAGIC_DEFENSE   = reg("mdef", "pl_attr_magic_def", "法术防御", false)
 
     val ATTR_CRIT_RATE       = reg("crit", "pl_attr_crit_rate", "暴击几率", true)
     val ATTR_CRIT_DMG        = reg("critdmg", "pl_attr_crit_dmg", "暴击伤害", true)
-    val ATTR_ARMOR_PEN       = reg("pen", "pl_attr_armor_pen", "物理穿透", false)
+    val ATTR_ARMOR_PEN       = reg("pen", "pl_attr_armor_pen", "护甲穿透", false)
     val ATTR_MAGIC_PEN       = reg("mpen", "pl_attr_magic_pen", "法术穿透", false)
     val ATTR_LIFE_STEAL      = reg("lifesteal", "pl_attr_life_steal", "生命偷取", true)
     val ATTR_ATTACK_RANGE    = reg("range", "pl_attr_range", "技能范围", false)
@@ -82,10 +82,10 @@ object BasicKeys {
     val ATTR_EXTRA_PEN = key("pl_attr_extra_pen")
 
     // --- 百分比属性 (Percent Attributes) ---
-    val ATTR_PHYSICAL_PERCENT   = regPercent(ATTR_PHYSICAL_DAMAGE, "phys_pct", "pl_attr_phys_pct", "物理加成")
+    val ATTR_PHYSICAL_PERCENT   = regPercent(ATTR_PHYSICAL_DAMAGE, "phys_pct", "pl_attr_phys_pct", "进攻加成")
     val ATTR_SKILL_PERCENT      = regPercent(ATTR_SKILL_DAMAGE, "skill_pct", "pl_attr_skill_pct", "法术加成")
     val ATTR_MAX_HEALTH_PERCENT = regPercent(ATTR_MAX_HEALTH, "hp_pct", "pl_attr_hp_pct", "生命加成")
-    val ATTR_ARMOR_PEN_PERCENT  = regPercent(ATTR_ARMOR_PEN, "pen_pct", "pl_attr_pen_pct", "物穿加成")
+    val ATTR_ARMOR_PEN_PERCENT  = regPercent(ATTR_ARMOR_PEN, "pen_pct", "pl_attr_pen_pct", "穿透加成")
     val ATTR_MAGIC_PEN_PERCENT  = regPercent(ATTR_MAGIC_PEN, "mpen_pct", "pl_attr_mpen_pct", "法穿加成")
     val ATTR_CRIT_DMG_PERCENT   = regPercent(ATTR_CRIT_DMG, "critdmg_pct", "pl_attr_critdmg_pct", "爆伤加成")
 

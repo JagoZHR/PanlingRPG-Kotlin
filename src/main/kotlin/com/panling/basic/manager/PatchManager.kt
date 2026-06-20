@@ -4,6 +4,7 @@ import com.panling.basic.PanlingBasic
 import com.panling.basic.api.BasicKeys
 import com.panling.basic.api.PatchTemplate
 import com.panling.basic.api.Reloadable
+import org.bukkit.Bukkit
 import org.bukkit.NamespacedKey
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
@@ -33,7 +34,14 @@ class PatchManager(
         loadAll()
     }
 
-    override fun reload() { loadAll() }
+    override fun reload() {
+        loadAll()
+        // 重新加载所有在线玩家的贴片数据（覆盖内存 → 后台改 YAML 后 reload 即生效）
+        for (player in Bukkit.getOnlinePlayers()) {
+            playerPatches.remove(player.uniqueId)
+            loadPlayerData(player)
+        }
+    }
 
     // =========================================================
     // 加载配置

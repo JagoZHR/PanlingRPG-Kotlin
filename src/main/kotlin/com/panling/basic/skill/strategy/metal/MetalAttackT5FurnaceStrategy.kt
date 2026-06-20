@@ -67,7 +67,7 @@ class MetalAttackT5FurnaceStrategy(private val plugin: PanlingBasic) : MageSkill
             t.leftRotation.set(rotation)
             sword.transformation = t
 
-            val power = plugin.statCalculator.getPlayerTotalStat(owner, BasicKeys.ATTR_SKILL_DAMAGE)
+            val power = plugin.statCalculator.getPlayerTotalStat(owner, BasicKeys.ATTR_PHYSICAL_DAMAGE)
             val damage = power * 1.6
 
             owner.playSound(owner.location, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1f, 0.5f)
