@@ -239,6 +239,8 @@ class ItemManager(private val plugin: JavaPlugin) : Reloadable {
         val fabaoLoreSupportSection: ConfigurationSection? = section.getConfigurationSection("fabao_lore.support")
         val subClass: String? = section.getString("sub_class")?.uppercase()
 
+        val patchSlots: Int? = section.getInt("patch_slots", 0).let { if (it > 0) it else null }
+
         // 技能相关
         val activeSkills = HashMap<SkillTrigger, String>()
         val activeCooldowns = HashMap<SkillTrigger, Double>()

@@ -1,0 +1,36 @@
+# 沙漠地区贴片 (speed + pen) — 简版，完整结构同 forest
+desert_speed_common:
+  name: "§f粗糙的疾速贴片"
+  material_rarity: COMMON
+  stat: speed
+  per_patch_pct: 3.0
+  craft_material: sand_essence
+  craft_count: 3
+  craft_cost: 100
+
+desert_pen_common:
+  name: "§f粗糙的穿透贴片"
+  material_rarity: COMMON
+  stat: pen
+  per_patch_pct: 3.0
+  craft_material: sand_essence
+  craft_count: 3
+  craft_cost: 100
+
+desert_speed_epic:
+  name: "§5完美的疾速贴片"
+  material_rarity: EPIC
+  stat: speed
+  per_patch_pct: 6.0
+  craft_material: spirit_essence
+  craft_count: 2
+  craft_cost: 2000
+
+desert_pen_epic:
+  name: "§5完美的穿透贴片"
+  material_rarity: EPIC
+  stat: pen
+  per_patch_pct: 6.0
+  craft_material: spirit_essence
+  craft_count: 2
+  craft_cost: 2000

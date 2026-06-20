@@ -7,6 +7,8 @@ import com.panling.basic.api.PlayerClass
 import com.panling.basic.api.PlayerRace
 import com.panling.basic.api.PlayerSubClass
 import com.panling.basic.ui.BankUI
+import com.panling.basic.ui.SpiritAttachmentUI
+import com.panling.basic.ui.PatchEmbedUI
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
@@ -220,6 +222,27 @@ class MenuManager(
         bgMeta.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "OPEN_BOSS_GUIDE")
         bossGuideBtn.itemMeta = bgMeta
         fullInv.setItem(7, bossGuideBtn)
+
+        // === Slot 6: 附灵 ===
+        val attachBtn = ItemStack(Material.ENDER_EYE)
+        val attachMeta = attachBtn.itemMeta
+        attachMeta.displayName(Component.text("§d§l[ 附灵 ]").decoration(TextDecoration.ITALIC, false))
+        val attachLore = ArrayList<Component>()
+        attachLore.add(Component.text("§7管理你的附灵槽位").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
+        attachLore.add(Component.text("§7提升效率/战力/特殊能力").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
+        attachMeta.lore(attachLore)
+        attachMeta.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "OPEN_ATTACHMENT")
+        attachBtn.itemMeta = attachMeta
+        fullInv.setItem(6, attachBtn)
+
+        // === Slot 16: 装备信息 ===
+        val equipInfoBtn = ItemStack(Material.IRON_CHESTPLATE)
+        val eiMeta = equipInfoBtn.itemMeta
+        eiMeta.displayName(Component.text("§a§l[ 装备信息 ]").decoration(TextDecoration.ITALIC, false))
+        eiMeta.lore(listOf(Component.text("§7查看身上装备的贴片").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)))
+        eiMeta.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "OPEN_EQUIP_INFO")
+        equipInfoBtn.itemMeta = eiMeta
+        fullInv.setItem(16, equipInfoBtn)
 
         // === Slot 8: 传送 ===
         val teleportBtn = ItemStack(Material.WARPED_FUNGUS_ON_A_STICK)
@@ -473,10 +496,9 @@ class MenuManager(
         fullInv.setItem(21, partyBtn)
 
         // 装饰玻璃板逻辑 (9-18)
-        // 中间 (13) 现在已经被占用了，所以只需要填补两边
-        // 9, 10, 11, 12 | 13(Button) | 14, 15, 16, 17
+        // 9, 10, 11, 12 | 13(切换) | 14, 15 | 16(装备信息) | 17
         for (i in 9 until 18) {
-            if (i != 13) fullInv.setItem(i, glass) // 注意：这里Java复用了 glass (浅灰)，不是 filler (深灰，上面炼化用的)。
+            if (i != 13 && i != 16) fullInv.setItem(i, glass)
         }
 
         player.openInventory(fullInv)
@@ -623,6 +645,18 @@ class MenuManager(
             // Boss 图鉴
             if ("OPEN_BOSS_GUIDE" == action) {
                 plugin.bossGuideUI.open(player)
+                return
+            }
+
+            // 附灵
+            if ("OPEN_ATTACHMENT" == action) {
+                SpiritAttachmentUI(plugin.spiritAttachmentManager).open(player)
+                return
+            }
+
+            // 装备信息（贴片查看）
+            if ("OPEN_EQUIP_INFO" == action) {
+                PatchEmbedUI().openEquipInfo(player)
                 return
             }
 

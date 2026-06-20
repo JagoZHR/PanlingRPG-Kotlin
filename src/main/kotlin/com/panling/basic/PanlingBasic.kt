@@ -19,6 +19,7 @@ import com.panling.basic.ui.SetUI
 import com.panling.basic.ui.ShopUI
 import com.panling.basic.ui.TeleportUI
 import com.panling.basic.ui.BossGuideUI
+import org.bukkit.Bukkit
 import org.bukkit.plugin.java.JavaPlugin
 
 class PanlingBasic : JavaPlugin() {
@@ -67,6 +68,8 @@ class PanlingBasic : JavaPlugin() {
     lateinit var teleportManager: TeleportManager
     lateinit var teleportUI: TeleportUI
     lateinit var bossGuideUI: BossGuideUI
+    lateinit var spiritAttachmentManager: SpiritAttachmentManager
+    lateinit var patchManager: PatchManager
 
     // 内部使用的管理器，不需要公开 getter 也可以直接 private
     lateinit var commandManager: CommandManager
@@ -120,6 +123,21 @@ class PanlingBasic : JavaPlugin() {
 
         subClassManager = SubClassManager(this, playerDataManager, statCalculator)
         this.statCalculator.subClassManager = this.subClassManager
+
+        spiritAttachmentManager = SpiritAttachmentManager(this, playerDataManager)
+        this.statCalculator.spiritAttachmentManager = this.spiritAttachmentManager
+        Bukkit.getPluginManager().registerEvents(
+            SpiritAttachmentListener(spiritAttachmentManager), this
+        )
+
+        patchManager = PatchManager(this, itemManager)
+        // 玩家数据持久化（登入加载/登出保存+卸载）
+        Bukkit.getPluginManager().registerEvents(object : org.bukkit.event.Listener {
+            @org.bukkit.event.EventHandler
+            fun onJoin(e: org.bukkit.event.player.PlayerJoinEvent) { patchManager.loadPlayerData(e.player) }
+            @org.bukkit.event.EventHandler
+            fun onQuit(e: org.bukkit.event.player.PlayerQuitEvent) { patchManager.savePlayerData(e.player); patchManager.unloadPlayerData(e.player) }
+        }, this)
 
         lootManager = LootManager(this, itemManager)
 

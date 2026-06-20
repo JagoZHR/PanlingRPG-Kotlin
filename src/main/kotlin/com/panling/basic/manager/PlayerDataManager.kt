@@ -71,6 +71,8 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
         activeItemIdCache.remove(uuid)
         slotHoldStartTime.remove(uuid)
         unlockedRacesCache.remove(uuid) // [NEW] 清理种族试炼缓存
+        attachmentCache.remove(uuid)       // [NEW] 清理附灵缓存
+        attachmentSlotCountCache.remove(uuid)
     }
 
     // === 属性缓存操作 ===
@@ -507,6 +509,10 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
         return player.level >= required
     }
 
+    // === 附灵缓存 (Spirit Attachments) ===
+    private val attachmentCache = HashMap<UUID, Array<String?>>()
+    private val attachmentSlotCountCache = HashMap<UUID, Int>()
+
     // === 被动技能 ===
     enum class PassiveTrigger { ATTACK, HIT, CONSTANT }
 
@@ -588,5 +594,70 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
         for (effect in player.activePotionEffects) {
             player.removePotionEffect(effect.type)
         }
+    }
+
+    // =========================================================
+    // [NEW] 附灵槽位管理 (Spirit Attachments)
+    // =========================================================
+    fun getAttachmentSlotCount(player: Player): Int {
+        val uuid = player.uniqueId
+        if (attachmentSlotCountCache.containsKey(uuid)) return attachmentSlotCountCache[uuid]!!
+        val slots = player.persistentDataContainer
+            .get(BasicKeys.DATA_ATTACHMENT_SLOTS, PersistentDataType.INTEGER) ?: 5
+        attachmentSlotCountCache[uuid] = slots
+        return slots
+    }
+
+    fun getAttachments(player: Player): Array<String?> {
+        val uuid = player.uniqueId
+        val cached = attachmentCache[uuid]
+        if (cached != null) return cached
+
+        val slots = getAttachmentSlotCount(player)
+        val arr = arrayOfNulls<String>(slots)
+        val data = player.persistentDataContainer
+            .get(BasicKeys.DATA_ATTACHMENTS, PersistentDataType.STRING)
+        if (!data.isNullOrEmpty()) {
+            val ids = data.split(",")
+            for (i in ids.indices) {
+                if (i < slots && ids[i].isNotEmpty()) arr[i] = ids[i]
+            }
+        }
+        attachmentCache[uuid] = arr
+        return arr
+    }
+
+    fun setAttachment(player: Player, slot: Int, attachmentId: String) {
+        val uuid = player.uniqueId
+        val arr = getAttachments(player).copyOf()
+        if (slot in arr.indices) arr[slot] = attachmentId
+        attachmentCache[uuid] = arr
+        saveAttachments(player, arr)
+        clearStatCache(player)  // 属性/被动可能变化
+    }
+
+    fun removeAttachment(player: Player, slot: Int) {
+        val uuid = player.uniqueId
+        val arr = getAttachments(player).copyOf()
+        if (slot in arr.indices) arr[slot] = null
+        attachmentCache[uuid] = arr
+        saveAttachments(player, arr)
+        clearStatCache(player)
+    }
+
+    private fun saveAttachments(player: Player, arr: Array<String?>) {
+        val nonNull = arr.filterNotNull()
+        if (nonNull.isEmpty()) {
+            player.persistentDataContainer.remove(BasicKeys.DATA_ATTACHMENTS)
+        } else {
+            player.persistentDataContainer.set(
+                BasicKeys.DATA_ATTACHMENTS, PersistentDataType.STRING,
+                arr.joinToString(",") { it ?: "" }
+            )
+        }
+    }
+
+    fun clearAttachmentCache(player: Player) {
+        attachmentCache.remove(player.uniqueId)
     }
 }

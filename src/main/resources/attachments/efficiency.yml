@@ -1,0 +1,28 @@
+# 效率提升类附灵
+wind_walker:
+  name: "§a疾风印"
+  type: EFFICIENCY
+  tier: 1
+  effects:
+    speed: 0.08
+
+treasure_hunter:
+  name: "§a寻宝符"
+  type: EFFICIENCY
+  tier: 1
+  effects:
+    # 怪物掉率 +12% (由 SpiritAttachmentManager 在 loot 计算时处理)
+
+spirit_gatherer:
+  name: "§a聚灵符"
+  type: EFFICIENCY
+  tier: 2
+  effects:
+    # 经验获取 +18%
+
+nature_bounty:
+  name: "§a万物流转"
+  type: EFFICIENCY
+  tier: 3
+  effects:
+    # 大世界怪物额外掉落 1 个地区材料 (15%几率)

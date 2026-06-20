@@ -5,7 +5,9 @@ import com.panling.basic.api.BasicKeys
 import com.panling.basic.api.ForgeCategory
 import com.panling.basic.api.ForgeRecipe
 import com.panling.basic.api.PlayerClass
+import com.panling.basic.api.Rarity
 import com.panling.basic.forge.ForgeManager
+import com.panling.basic.manager.PatchManager
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
@@ -86,6 +88,8 @@ class ForgeUI(private val manager: ForgeManager) {
                 else openSubclassMenu(player, playerClass)
             }
             ForgeCategory.ARMOR -> openSlotMenu(player, playerClass)
+            ForgeCategory.PATCH_CRAFT -> openPatchRarityMenu(player)
+            ForgeCategory.PATCH_EMBED -> PatchEmbedUI().open(player)
             else -> openRecipeList(player, category, null, 0)
         }
     }
@@ -147,7 +151,7 @@ class ForgeUI(private val manager: ForgeManager) {
     }
 
     // === Level 3: 配方列表（分页） ===
-    fun openRecipeList(player: Player, category: ForgeCategory, subFilter: String?, page: Int) {
+    fun openRecipeList(player: Player, category: ForgeCategory, subFilter: String?, page: Int, parentState: String = "MAIN") {
         val playerClass = manager.playerDataManager.getPlayerClass(player)
         val dataManager = manager.playerDataManager
         val allRecipes = manager.getRecipesByCategory(category)
@@ -170,6 +174,7 @@ class ForgeUI(private val manager: ForgeManager) {
                     subFilter == "CONVERT" -> recipe.tier == 0  // 转换页：只显示 tier=0 的配方
                     category == ForgeCategory.WEAPON -> recipe.sub == subFilter && recipe.tier > 0  // 流派页：排除转换配方
                     category == ForgeCategory.ARMOR -> recipe.slot == subFilter
+                    category == ForgeCategory.PATCH_CRAFT -> recipe.sub == subFilter  // 贴片：按稀有度过滤
                     else -> false
                 }
             } else true
@@ -223,7 +228,7 @@ class ForgeUI(private val manager: ForgeManager) {
             inv.setItem(50, next)
         }
 
-        addBackButton(inv, 45, "MAIN")
+        addBackButton(inv, 45, parentState)
         fillBorder(inv)
         player.openInventory(inv)
     }
@@ -324,7 +329,44 @@ class ForgeUI(private val manager: ForgeManager) {
         return c
     }
 
+    // =========================================================
+    // 贴片稀有度选择菜单
+    // =========================================================
+    fun openPatchRarityMenu(player: Player) {
+        val inv = Bukkit.createInventory(ForgeHolder("PATCH_CRAFT_RARITY"), 27, Component.text("§8❖ 选择贴片稀有度 ❖"))
+        val rarities: List<Pair<Rarity, Material>> = listOf(
+            Rarity.COMMON to Material.FLINT,
+            Rarity.UNCOMMON to Material.IRON_INGOT,
+            Rarity.RARE to Material.IRON_NUGGET,
+            Rarity.EPIC to Material.DIAMOND,
+            Rarity.LEGENDARY to Material.NETHERITE_SCRAP
+        )
+        for (i in rarities.indices) {
+            val (r, mat) = rarities[i]
+            val icon = ItemStack(mat)
+            val meta = icon.itemMeta
+            meta.displayName(Component.text("${r.displayName}品质贴片")
+                .decoration(TextDecoration.ITALIC, false))
+            meta.lore(listOf(Component.text("§7点击查看该稀有度的所有贴片").decoration(TextDecoration.ITALIC, false)))
+            meta.persistentDataContainer.set(subKey, PersistentDataType.STRING, r.name)
+            icon.itemMeta = meta
+            inv.setItem(SLOTS_27[i], icon)
+        }
+        addBackButton(inv, 18, "MAIN")
+        fillBorder(inv)
+        player.openInventory(inv)
+    }
+
     class ForgeHolder(val type: String) : InventoryHolder {
         override fun getInventory(): Inventory = throw UnsupportedOperationException()
+    }
+
+    companion object {
+        fun statDisplay(short: String): String = when (short) {
+            "phys" -> "物理强度"; "def" -> "物理防御"; "hp" -> "生命"
+            "speed" -> "速度"; "pen" -> "穿透"; "crit" -> "暴击率"
+            "critdmg" -> "暴击伤害"; "cdr" -> "冷却"; "lifesteal" -> "生命偷取"
+            "kb" -> "击退抗性"; else -> short
+        }
     }
 }

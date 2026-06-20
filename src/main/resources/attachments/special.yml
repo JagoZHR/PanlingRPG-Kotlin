@@ -1,0 +1,40 @@
+# 特殊作用类附灵
+spirit_vision:
+  name: "§d灵视符"
+  type: SPECIAL
+  tier: 1
+  special_monsters:
+    - spirit_guardian
+    - ancient_wraith
+
+demon_eye:
+  name: "§d妖瞳"
+  type: SPECIAL
+  tier: 2
+  special_monsters:
+    - demon_fox
+    - yaohua_spirit
+
+nether_lantern:
+  name: "§d冥途灯"
+  type: SPECIAL
+  tier: 3
+  special_monsters:
+    - nether_ghost_soldier
+    - judge_shade
+
+golden_eye:
+  name: "§d金瞳"
+  type: SPECIAL
+  tier: 3
+  special_monsters:
+    - golden_armor_guard
+    - sword_spirit
+
+wood_eye:
+  name: "§d木灵目"
+  type: SPECIAL
+  tier: 3
+  special_monsters:
+    - treant_elder
+    - forest_guardian

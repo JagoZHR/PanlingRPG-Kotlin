@@ -1,0 +1,76 @@
+# 森林地区贴片 (hp + cdr)
+# COMMON
+forest_hp_common:
+  name: "§f粗糙的生命贴片"
+  material_rarity: COMMON
+  stat: hp
+  per_patch_pct: 3.0
+  craft_material: wood_essence
+  craft_count: 3
+  craft_cost: 100
+
+forest_cdr_common:
+  name: "§f粗糙的冷却贴片"
+  material_rarity: COMMON
+  stat: cdr
+  per_patch_pct: 3.0
+  craft_material: wood_essence
+  craft_count: 3
+  craft_cost: 100
+
+# RARE
+forest_hp_rare:
+  name: "§9精炼的生命贴片"
+  material_rarity: RARE
+  stat: hp
+  per_patch_pct: 5.0
+  craft_material: refined_wood_essence
+  craft_count: 3
+  craft_cost: 500
+
+forest_cdr_rare:
+  name: "§9精炼的冷却贴片"
+  material_rarity: RARE
+  stat: cdr
+  per_patch_pct: 5.0
+  craft_material: refined_wood_essence
+  craft_count: 3
+  craft_cost: 500
+
+# EPIC
+forest_hp_epic:
+  name: "§5完美的生命贴片"
+  material_rarity: EPIC
+  stat: hp
+  per_patch_pct: 6.0
+  craft_material: spirit_essence
+  craft_count: 2
+  craft_cost: 2000
+
+forest_cdr_epic:
+  name: "§5完美的冷却贴片"
+  material_rarity: EPIC
+  stat: cdr
+  per_patch_pct: 6.0
+  craft_material: spirit_essence
+  craft_count: 2
+  craft_cost: 2000
+
+# LEGENDARY
+forest_hp_legendary:
+  name: "§6神铸的生命贴片"
+  material_rarity: LEGENDARY
+  stat: hp
+  per_patch_pct: 10.0
+  craft_material: divine_marrow
+  craft_count: 1
+  craft_cost: 10000
+
+forest_cdr_legendary:
+  name: "§6神铸的冷却贴片"
+  material_rarity: LEGENDARY
+  stat: cdr
+  per_patch_pct: 10.0
+  craft_material: divine_marrow
+  craft_count: 1
+  craft_cost: 10000

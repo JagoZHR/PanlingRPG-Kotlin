@@ -1,0 +1,36 @@
+# 深渊地区贴片 (phys + lifesteal) — 简版
+abyss_phys_common:
+  name: "§f粗糙的锋锐贴片"
+  material_rarity: COMMON
+  stat: phys
+  per_patch_pct: 3.0
+  craft_material: abyss_essence
+  craft_count: 3
+  craft_cost: 100
+
+abyss_lifesteal_common:
+  name: "§f粗糙的嗜血贴片"
+  material_rarity: COMMON
+  stat: lifesteal
+  per_patch_pct: 3.0
+  craft_material: abyss_essence
+  craft_count: 3
+  craft_cost: 100
+
+abyss_phys_epic:
+  name: "§5完美的锋锐贴片"
+  material_rarity: EPIC
+  stat: phys
+  per_patch_pct: 6.0
+  craft_material: spirit_essence
+  craft_count: 2
+  craft_cost: 2000
+
+abyss_lifesteal_epic:
+  name: "§5完美的嗜血贴片"
+  material_rarity: EPIC
+  stat: lifesteal
+  per_patch_pct: 6.0
+  craft_material: spirit_essence
+  craft_count: 2
+  craft_cost: 2000

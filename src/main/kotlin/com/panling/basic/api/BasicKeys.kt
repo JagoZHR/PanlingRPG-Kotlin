@@ -122,6 +122,10 @@ object BasicKeys {
     val DATA_MONEY = key("pl_data_money")
     val DATA_QUIVER_ARROWS = key("pl_data_quiver_arrows")
 
+    // --- 附灵数据 Keys (Spirit Attachments) ---
+    val DATA_ATTACHMENTS = key("pl_data_attachments")       // 5槽附灵ID列表 (逗号分隔)
+    val DATA_ATTACHMENT_SLOTS = key("pl_attachment_slots")  // 附灵槽位数量
+
     // --- 其他/杂项 Keys ---
     val ARROW_DAMAGE_STORE = key("pl_arrow_dmg_store")
     val PASSIVE_ON_ATTACK = key("pl_pas_attack")

@@ -11,7 +11,8 @@ enum class ForgeCategory(
     ARMOR("§b防具锻造", Material.DIAMOND_CHESTPLATE, "ARMOR"),
     ACCESSORY("§d饰品锻造", Material.EMERALD, "ACCESSORY"),
     FABAO("§6法宝锻造", Material.NETHER_STAR, "FABAO"),
-    //ELEMENT("§e元素炼制", Material.BLAZE_POWDER, "ELEMENT"),
+    PATCH_CRAFT("§a贴片制作", Material.SMITHING_TABLE, "PATCH"),
+    PATCH_EMBED("§e贴片镶嵌", Material.ANVIL, "PATCH"),
     OTHER("§7杂项/材料", Material.PAPER, "MATERIAL", "OTHER");
 
     companion object {

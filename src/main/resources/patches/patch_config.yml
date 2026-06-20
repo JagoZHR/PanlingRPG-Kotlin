@@ -1,0 +1,13 @@
+# 贴片系统全局属性上限
+stat_caps:
+  phys: 0.30
+  def: 0.30
+  hp: 0.30
+  pen: 0.30
+  mpen: 0.30
+  critdmg: 0.30
+  crit: 0.15
+  lifesteal: 0.10
+  cdr: 0.20
+  speed: 0.15
+  kb: 0.20

@@ -1,5 +1,6 @@
 package com.panling.basic.manager
 
+import com.panling.basic.PanlingBasic
 import com.panling.basic.api.BasicKeys
 import com.panling.basic.api.PlayerClass
 import com.panling.basic.api.PlayerRace
@@ -24,6 +25,7 @@ class StatCalculator(
     // 可选依赖，通过 setter 注入
     var buffManager: BuffManager? = null
     var subClassManager: SubClassManager? = null
+    var spiritAttachmentManager: SpiritAttachmentManager? = null
 
     companion object {
         // [NEW] 定义原版基准属性
@@ -71,7 +73,28 @@ class StatCalculator(
         }
         // 其他属性 (如攻击力) 默认基数为 0 (完全由装备提供)
 
-        // 3. 应用动态修饰 (流派)
+        // 3. 应用附灵数值效果 (在流派修饰之前)
+        spiritAttachmentManager?.let { manager ->
+            val effects = manager.getStatEffects(player)
+            for ((shortName, effectValue) in effects) {
+                // 将附灵的短属性名映射到 NamespacedKey
+                val nsKey = BasicKeys.SHORT_NAME_MAP[shortName.lowercase()]
+                if (nsKey != null && nsKey == key) {
+                    // 区分绝对值和百分比属性
+                    val meta = BasicKeys.STAT_METADATA[key]
+                    if (meta?.isPercent == true) {
+                        value += effectValue  // 百分比属性直接累加
+                    } else if (key == BasicKeys.ATTR_MAX_HEALTH || key == BasicKeys.ATTR_MOVE_SPEED) {
+                        // 已在步骤2注入基准，这里按绝对值累加
+                        value += effectValue
+                    } else {
+                        value += effectValue  // 绝对值直接加
+                    }
+                }
+            }
+        }
+
+        // 4. 应用动态修饰 (流派)
         subClassManager?.let { manager ->
             val heldTime = dataManager.getSlotHoldDuration(player)
             val strategy = manager.getStrategy(player)
@@ -91,7 +114,7 @@ class StatCalculator(
             }
         }
 
-        // 4. 应用 Buff (乘算/加算)
+        // 5. 应用 Buff (乘算/加算)
         // 此时 value 已经是总值了，Buff x1.2 会正确放大原版属性
         buffManager?.let { manager ->
             value = manager.applyBuffsToValue(player, key, value)
@@ -115,11 +138,26 @@ class StatCalculator(
             val meta = item.itemMeta ?: continue
             val pdc = meta.persistentDataContainer
 
-            // 累计基础属性
+            // 累计基础属性（含贴片加成）
+            val itemId = pdc.get(BasicKeys.ITEM_ID, PersistentDataType.STRING)
+            val patchByStat: Map<String, Double> = if (itemId != null && player != null && spiritAttachmentManager != null) {
+                val pm = PanlingBasic.instance.patchManager
+                val patches = pm.getPatchesForItem(player, itemId)
+                val result = HashMap<String, Double>()
+                for (p: PatchSlot in patches) {
+                    result[p.stat] = (result[p.stat] ?: 0.0) + p.pct
+                }
+                result
+            } else emptyMap()
+
             for (key in BasicKeys.ALL_STATS) {
                 val valInPdc = pdc.get(key, PersistentDataType.DOUBLE)
-                if (valInPdc != null) {
-                    baseStats.merge(key, valInPdc) { a, b -> a + b }
+                if (valInPdc != null && valInPdc != 0.0) {
+                    val shortName = BasicKeys.SHORT_NAME_MAP.entries
+                        .find { it.value == key }?.key
+                    val patchBonus = if (shortName != null) patchByStat[shortName] ?: 0.0 else 0.0
+                    val effective = if (patchBonus > 0) valInPdc * (1.0 + patchBonus) else valInPdc
+                    baseStats.merge(key, effective) { a, b -> a + b }
                 }
             }
 
@@ -161,6 +199,9 @@ class StatCalculator(
                 cacheSetPassives(player, setDef, count)
             }
         }
+
+        // 3.5 附灵被动注册 (COMBAT类型)
+        spiritAttachmentManager?.registerPassivesToCache(player)
 
         // 4. 种族加成 (全收集试炼系统)
         val unlockedRaces = dataManager.getUnlockedRaces(player)
