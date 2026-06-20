@@ -7,7 +7,6 @@ import com.panling.basic.api.PlayerClass
 import com.panling.basic.api.PlayerRace
 import com.panling.basic.api.PlayerSubClass
 import com.panling.basic.ui.BankUI
-import com.panling.basic.ui.SpiritAttachmentUI
 import com.panling.basic.ui.PatchEmbedUI
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
@@ -222,18 +221,6 @@ class MenuManager(
         bgMeta.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "OPEN_BOSS_GUIDE")
         bossGuideBtn.itemMeta = bgMeta
         fullInv.setItem(7, bossGuideBtn)
-
-        // === Slot 6: 附灵 ===
-        val attachBtn = ItemStack(Material.ENDER_EYE)
-        val attachMeta = attachBtn.itemMeta
-        attachMeta.displayName(Component.text("§d§l[ 附灵 ]").decoration(TextDecoration.ITALIC, false))
-        val attachLore = ArrayList<Component>()
-        attachLore.add(Component.text("§7管理你的附灵槽位").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
-        attachLore.add(Component.text("§7提升效率/战力/特殊能力").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
-        attachMeta.lore(attachLore)
-        attachMeta.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "OPEN_ATTACHMENT")
-        attachBtn.itemMeta = attachMeta
-        fullInv.setItem(6, attachBtn)
 
         // === Slot 16: 装备信息 ===
         val equipInfoBtn = ItemStack(Material.IRON_CHESTPLATE)
@@ -648,12 +635,6 @@ class MenuManager(
             // Boss 图鉴
             if ("OPEN_BOSS_GUIDE" == action) {
                 plugin.bossGuideUI.open(player)
-                return
-            }
-
-            // 附灵
-            if ("OPEN_ATTACHMENT" == action) {
-                SpiritAttachmentUI(plugin.spiritAttachmentManager).open(player)
                 return
             }
 

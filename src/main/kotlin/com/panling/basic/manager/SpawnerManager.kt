@@ -129,6 +129,14 @@ class SpawnerManager(
             } ?: continue
 
             val selectedMobId = spawner.mobPool.getRandomId() ?: continue
+            // 检查可见性被动：有 visible_passive 的怪只有对应被动的玩家能看到
+            val mobTemplate = mobManager.getTemplate(selectedMobId)
+            if (mobTemplate?.visiblePassive != null) {
+                val hasPassive = plugin.playerDataManager
+                    .getCachedPassives(player, PlayerDataManager.PassiveTrigger.CONSTANT)
+                    .any { it.id == mobTemplate.visiblePassive }
+                if (!hasPassive) continue
+            }
             val mob = mobManager.spawnPrivateMob(spawnLoc, selectedMobId, player)
 
             if (mob != null) {

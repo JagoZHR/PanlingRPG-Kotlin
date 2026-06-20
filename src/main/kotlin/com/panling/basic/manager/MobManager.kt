@@ -92,7 +92,8 @@ class MobManager(
         val scale: Double = 1.0, // 体型缩放 (仅 Paper)
         val rabbitType: String? = null, // Rabbit.Type 名称 (仅 RABBIT)
         val noAi: Boolean = false, // 关闭 AI (训练假人)
-        val regenPerSec: Double = 0.0 // 每秒回血百分比 (0=不回)
+        val regenPerSec: Double = 0.0, // 每秒回血百分比 (0=不回)
+        val visiblePassive: String? = null // 可见被动ID (有该被动的玩家才能看到)
     )
 
     init {
@@ -258,10 +259,13 @@ class MobManager(
             scale = scale,
             rabbitType = rabbitType,
             noAi = sec.getBoolean("no_ai", false),
-            regenPerSec = sec.getDouble("regen", 0.0)
+            regenPerSec = sec.getDouble("regen", 0.0),
+            visiblePassive = sec.getString("visible_passive")
         )
         mobCache[id] = stats
     }
+
+    fun getTemplate(id: String): MobStats? = mobCache[id]
 
     // ==========================================================
     // 3. 逻辑核心：生成与属性

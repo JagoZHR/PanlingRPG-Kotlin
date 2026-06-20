@@ -25,7 +25,6 @@ class StatCalculator(
     // 可选依赖，通过 setter 注入
     var buffManager: BuffManager? = null
     var subClassManager: SubClassManager? = null
-    var spiritAttachmentManager: SpiritAttachmentManager? = null
 
     companion object {
         // [NEW] 定义原版基准属性
@@ -73,28 +72,7 @@ class StatCalculator(
         }
         // 其他属性 (如攻击力) 默认基数为 0 (完全由装备提供)
 
-        // 3. 应用附灵数值效果 (在流派修饰之前)
-        spiritAttachmentManager?.let { manager ->
-            val effects = manager.getStatEffects(player)
-            for ((shortName, effectValue) in effects) {
-                // 将附灵的短属性名映射到 NamespacedKey
-                val nsKey = BasicKeys.SHORT_NAME_MAP[shortName.lowercase()]
-                if (nsKey != null && nsKey == key) {
-                    // 区分绝对值和百分比属性
-                    val meta = BasicKeys.STAT_METADATA[key]
-                    if (meta?.isPercent == true) {
-                        value += effectValue  // 百分比属性直接累加
-                    } else if (key == BasicKeys.ATTR_MAX_HEALTH || key == BasicKeys.ATTR_MOVE_SPEED) {
-                        // 已在步骤2注入基准，这里按绝对值累加
-                        value += effectValue
-                    } else {
-                        value += effectValue  // 绝对值直接加
-                    }
-                }
-            }
-        }
-
-        // 4. 应用动态修饰 (流派)
+        // 3. 应用动态修饰 (流派)
         subClassManager?.let { manager ->
             val heldTime = dataManager.getSlotHoldDuration(player)
             val strategy = manager.getStrategy(player)
@@ -140,7 +118,7 @@ class StatCalculator(
 
             // 累计基础属性（含贴片加成）
             val itemId = pdc.get(BasicKeys.ITEM_ID, PersistentDataType.STRING)
-            val patchByStat: Map<String, Double> = if (itemId != null && player != null && spiritAttachmentManager != null) {
+            val patchByStat: Map<String, Double> = if (itemId != null && player != null) {
                 val pm = PanlingBasic.instance.patchManager
                 val patches = pm.getPatchesForItem(player, itemId)
                 val result = HashMap<String, Double>()
@@ -200,10 +178,7 @@ class StatCalculator(
             }
         }
 
-        // 3.5 附灵被动注册 (COMBAT类型)
-        spiritAttachmentManager?.registerPassivesToCache(player)
-
-        // 4. 种族加成 (全收集试炼系统)
+        // 4. 种族加成
         val unlockedRaces = dataManager.getUnlockedRaces(player)
         val level = player.level // Or dataManager.getLevel(player) if you prefer consistency
 
