@@ -22,11 +22,13 @@ import com.panling.basic.mob.skill.impl.RoarSkill
 import com.panling.basic.mob.skill.impl.PoisonSpraySkill
 import com.panling.basic.mob.skill.impl.GroundSlamSkill
 import com.panling.basic.mob.skill.impl.FrostNovaSkill
+import com.panling.basic.mob.skill.impl.ShadowStrikeSkill
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.attribute.Attribute
+import org.bukkit.entity.Ageable
 import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.EntityType
@@ -154,6 +156,7 @@ class MobManager(
         skillRegistry.register("POISON_SPRAY") { PoisonSpraySkill(it) }
         skillRegistry.register("GROUND_SLAM") { GroundSlamSkill(it) }
         skillRegistry.register("FROST_NOVA") { FrostNovaSkill(it) }
+        skillRegistry.register("SHADOW_STRIKE") { ShadowStrikeSkill(it) }
     }
 
     // ==========================================================
@@ -288,9 +291,12 @@ class MobManager(
         entity.customName = template.name.replace("&", "§")
         entity.isCustomNameVisible = true
 
-        // 强制成年 + 防鸡骑士
+        // 强制成年（所有可幼年实体：僵尸/疣猪兽/猪灵等）
+        if (entity is Ageable) {
+            entity.setAdult()
+        }
+        // 防鸡骑士（仅僵尸类）
         if (entity is Zombie) {
-            entity.setBaby(false)
             entity.vehicle?.remove()
         }
 

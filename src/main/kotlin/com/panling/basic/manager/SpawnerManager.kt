@@ -128,15 +128,13 @@ class SpawnerManager(
                 findRandomLocAround(player.location, spawner.spawnRadius, spawner.minDistance)
             } ?: continue
 
-            val selectedMobId = spawner.mobPool.getRandomId() ?: continue
-            // 检查可见性被动：有 visible_passive 的怪只有对应被动的玩家能看到
-            val mobTemplate = mobManager.getTemplate(selectedMobId)
-            if (mobTemplate?.visiblePassive != null) {
-                val hasPassive = plugin.playerDataManager
+            // 可见性过滤：没有对应被动的玩家看不到灵视变种
+            val selectedMobId = spawner.mobPool.tryGetRandomId { mobId ->
+                val tpl = mobManager.getTemplate(mobId)
+                tpl?.visiblePassive == null || plugin.playerDataManager
                     .getCachedPassives(player, PlayerDataManager.PassiveTrigger.CONSTANT)
-                    .any { it.id == mobTemplate.visiblePassive }
-                if (!hasPassive) continue
-            }
+                    .any { it.id == tpl.visiblePassive }
+            } ?: continue
             val mob = mobManager.spawnPrivateMob(spawnLoc, selectedMobId, player)
 
             if (mob != null) {
@@ -529,45 +527,44 @@ class SpawnerManager(
         private data class Entry(val mobId: String, val weight: Int)
 
         private val entries = mutableListOf<Entry>()
-        private val spawnCounts = mutableMapOf<String, Int>()
-        private var totalSpawns = 0
+        private val shuffleBag = mutableListOf<String>()
 
         fun add(mobId: String, weight: Double) {
             val w = weight.toInt()
             if (w <= 0) return
             entries.add(Entry(mobId, w))
-            spawnCounts[mobId] = 0
         }
 
         /**
-         * 公平调度：总是选出当前 spawnCount/weight 比值最低的怪物，
-         * 保证长期来看每种怪的出现次数严格按权重比例分配。
-         * 稀有怪（低权重）不会长期不出现，扎堆也被消除。
+         * 洗牌袋：不放回随机抽取。一圈内每种怪出现次数严格等于权重。
          */
         fun getRandomId(): String? {
             if (entries.isEmpty()) return null
+            if (shuffleBag.isEmpty()) refillBag()
+            val idx = ThreadLocalRandom.current().nextInt(shuffleBag.size)
+            return shuffleBag.removeAt(idx)
+        }
 
-            // 定期重置计数防止整数溢出
-            if (totalSpawns > 10000) {
-                for (e in entries) spawnCounts[e.mobId] = spawnCounts[e.mobId]!! / 2
-                totalSpawns /= 2
+        /**
+         * 带过滤的随机抽取：只从通过 filter 的怪物中真随机选一个。
+         * 不影响洗牌袋状态。
+         */
+        fun tryGetRandomId(filter: (String) -> Boolean): String? {
+            // 收集所有通过 filter 的怪，按权重复制
+            val eligible = mutableListOf<String>()
+            for ((mobId, weight) in entries) {
+                if (filter(mobId)) repeat(weight) { eligible.add(mobId) }
             }
+            if (eligible.isEmpty()) return null
+            return eligible[ThreadLocalRandom.current().nextInt(eligible.size)]
+        }
 
-            var best: Entry = entries[0]
-            var bestRatio = spawnCounts[best.mobId]!!.toDouble() / best.weight
-
-            for (i in 1 until entries.size) {
-                val e = entries[i]
-                val ratio = spawnCounts[e.mobId]!!.toDouble() / e.weight
-                if (ratio < bestRatio) {
-                    bestRatio = ratio
-                    best = e
-                }
+        private fun refillBag() {
+            shuffleBag.clear()
+            for ((mobId, weight) in entries) {
+                repeat(weight) { shuffleBag.add(mobId) }
             }
-
-            spawnCounts[best.mobId] = spawnCounts[best.mobId]!! + 1
-            totalSpawns++
-            return best.mobId
+            shuffleBag.shuffle()
         }
 
         fun isEmpty(): Boolean = entries.isEmpty()
