@@ -526,23 +526,51 @@ class SpawnerManager(
     private enum class SpawnMode { RANDOM, FIXED }
 
     private class MobPool {
-        private val map = TreeMap<Double, String>()
-        private var totalWeight = 0.0
+        private data class Entry(val mobId: String, val weight: Int)
+
+        private val entries = mutableListOf<Entry>()
+        private val spawnCounts = mutableMapOf<String, Int>()
+        private var totalSpawns = 0
 
         fun add(mobId: String, weight: Double) {
-            if (weight <= 0) return
-            totalWeight += weight
-            map[totalWeight] = mobId
+            val w = weight.toInt()
+            if (w <= 0) return
+            entries.add(Entry(mobId, w))
+            spawnCounts[mobId] = 0
         }
 
+        /**
+         * 公平调度：总是选出当前 spawnCount/weight 比值最低的怪物，
+         * 保证长期来看每种怪的出现次数严格按权重比例分配。
+         * 稀有怪（低权重）不会长期不出现，扎堆也被消除。
+         */
         fun getRandomId(): String? {
-            if (map.isEmpty()) return null
-            val value = ThreadLocalRandom.current().nextDouble() * totalWeight
-            val entry = map.higherEntry(value)
-            return entry?.value
+            if (entries.isEmpty()) return null
+
+            // 定期重置计数防止整数溢出
+            if (totalSpawns > 10000) {
+                for (e in entries) spawnCounts[e.mobId] = spawnCounts[e.mobId]!! / 2
+                totalSpawns /= 2
+            }
+
+            var best: Entry = entries[0]
+            var bestRatio = spawnCounts[best.mobId]!!.toDouble() / best.weight
+
+            for (i in 1 until entries.size) {
+                val e = entries[i]
+                val ratio = spawnCounts[e.mobId]!!.toDouble() / e.weight
+                if (ratio < bestRatio) {
+                    bestRatio = ratio
+                    best = e
+                }
+            }
+
+            spawnCounts[best.mobId] = spawnCounts[best.mobId]!! + 1
+            totalSpawns++
+            return best.mobId
         }
 
-        fun isEmpty(): Boolean = map.isEmpty()
+        fun isEmpty(): Boolean = entries.isEmpty()
     }
 
     private class DepletionSession {

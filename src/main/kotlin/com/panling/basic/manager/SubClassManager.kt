@@ -119,7 +119,7 @@ class SubClassManager(
             val maxHp = player.getAttribute(Attribute.MAX_HEALTH)?.value ?: 20.0
             val missing = maxHp - player.health
             if (missing > 0.5) {
-                val heal = missing * 0.15
+                val heal = missing * 0.08
                 player.health = min(maxHp, player.health + heal)
                 // 1 tick REGENERATION VI 仅做视觉（血条白边闪烁），不依赖其回血
                 player.addPotionEffect(PotionEffect(
@@ -340,7 +340,7 @@ class SubClassManager(
                     player.health = maxHp * 0.2  // 刚好扣到 20%
                 }
                 // 血盾：ABSORPTION 药水效果，1级=4HP，取最接近 8% 生命的等级
-                val rawAbsorb = maxHp * 0.08
+                val rawAbsorb = maxHp * 0.15
                 val level = (rawAbsorb / 4.0).roundToInt().coerceAtLeast(1)
                 player.addPotionEffect(PotionEffect(
                     PotionEffectType.ABSORPTION, 200, level - 1, true, false

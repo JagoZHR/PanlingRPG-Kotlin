@@ -118,7 +118,7 @@ class BossGuideUI(private val plugin: PanlingBasic) : Listener {
     private fun buildBossItem(entry: BossEntry, player: Player): ItemStack {
         val item = ItemStack(entry.material)
         val meta = item.itemMeta
-        meta.displayName(Component.text("${entry.bossName} §7[Lv.${entry.level}]").decoration(TextDecoration.ITALIC, false))
+        meta.displayName(Component.text("${entry.bossName.replace('&', '§')} §7[Lv.${entry.level}]").decoration(TextDecoration.ITALIC, false))
 
         val loc = Location(Bukkit.getWorld(entry.world), entry.x, entry.y, entry.z)
         val dist = if (player.world.name == entry.world)

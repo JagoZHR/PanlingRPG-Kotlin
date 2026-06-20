@@ -18,6 +18,10 @@ import com.panling.basic.mob.skill.impl.DashSkill
 import com.panling.basic.mob.skill.impl.ThrowSkill
 import com.panling.basic.mob.skill.impl.MirrorSkill
 import com.panling.basic.mob.skill.impl.RegenSkill
+import com.panling.basic.mob.skill.impl.RoarSkill
+import com.panling.basic.mob.skill.impl.PoisonSpraySkill
+import com.panling.basic.mob.skill.impl.GroundSlamSkill
+import com.panling.basic.mob.skill.impl.FrostNovaSkill
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.Material
@@ -146,6 +150,10 @@ class MobManager(
         skillRegistry.register("THROW") { ThrowSkill(it) }
         skillRegistry.register("MIRROR") { MirrorSkill(it) }
         skillRegistry.register("REGEN") { RegenSkill(it) }
+        skillRegistry.register("ROAR") { RoarSkill(it) }
+        skillRegistry.register("POISON_SPRAY") { PoisonSpraySkill(it) }
+        skillRegistry.register("GROUND_SLAM") { GroundSlamSkill(it) }
+        skillRegistry.register("FROST_NOVA") { FrostNovaSkill(it) }
     }
 
     // ==========================================================

@@ -1,6 +1,7 @@
 package com.panling.basic.mob.skill.impl
 
 import com.panling.basic.PanlingBasic
+import com.panling.basic.api.BasicKeys
 import com.panling.basic.mob.skill.MobSkill
 import org.bukkit.attribute.Attribute
 import org.bukkit.configuration.ConfigurationSection
@@ -23,7 +24,16 @@ class SummonSkill(config: ConfigurationSection) : MobSkill {
             val loc = caster.location.clone().add(
                 (Random.nextDouble() - 0.5) * 4, 0.0, (Random.nextDouble() - 0.5) * 4
             )
-            val mob = plugin.mobManager.spawnMob(loc, mobId) ?: return@repeat
+            // 用 spawnPrivateMob 确保召唤物是独立怪（只有目标玩家可见）
+            val player = target as? org.bukkit.entity.Player
+            val mob = if (player != null)
+                plugin.mobManager.spawnPrivateMob(loc, mobId, player)
+            else
+                plugin.mobManager.spawnMob(loc, mobId)
+            mob ?: return@repeat
+
+            // 召唤物不掉落任何物品（清除 MOB_ID 使其不被掉落系统识别）
+            mob.persistentDataContainer.remove(BasicKeys.MOB_ID)
 
             // 标记为召唤物，防止递归召唤
             mob.persistentDataContainer.set(
