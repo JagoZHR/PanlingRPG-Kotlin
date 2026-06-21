@@ -91,6 +91,9 @@ class ZhuqueJitanPhase(
         bg.getAttribute(Attribute.MAX_HEALTH)?.let { attr -> attr.baseValue *= scale; bg.health = attr.baseValue }
         bg.getAttribute(Attribute.ATTACK_DAMAGE)?.let { attr -> attr.baseValue *= 1.0 + (instance.players.size - 1) * 0.1 }
         bigGuard = bg
+        instance.glowEntity(bg)
+
+        instance.setPhaseTitle("§c击败守卫 §f0/3")
 
         nextFireRingTick = instance.tickCount + Random.nextLong(60, 100)
 
@@ -132,12 +135,13 @@ class ZhuqueJitanPhase(
             val bigAlive = bigGuard != null && bigGuard!!.isValid && !bigGuard!!.isDead
             if (!guardsAlive && !bigAlive) {
                 phase2 = true
+                instance.setPhaseTitle("§e三叉戟击落恶魂 §f0/3")
                 instance.broadcast("§c守卫已全部倒下！§e烈焰之源显现，夺取三叉戟击落恶魂！")
                 instance.broadcastSound(Sound.ENTITY_WITHER_SPAWN)
                 source = instance.world.spawnEntity(toWorld(sourceLoc), EntityType.BLAZE) as Blaze
                 source!!.customName(Component.text("§c烈焰之源")); source!!.isCustomNameVisible = true
                 source!!.setAI(false); source!!.isSilent = true
-                source!!.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 1500.0; source!!.health = 1500.0
+                source!!.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 1500000.0; source!!.health = 1500000.0
                 source!!.getAttribute(Attribute.KNOCKBACK_RESISTANCE)?.baseValue = 1.0
                 source!!.lootTable = null; source!!.isPersistent = true; source!!.removeWhenFarAway = false
                 spawnGhast()
@@ -203,6 +207,7 @@ class ZhuqueJitanPhase(
             }
             if (shooter != null && hasTrident.contains(shooter.uniqueId)) {
                 ghastHits++; ghastHitCooldown = 20
+                instance.setPhaseTitle("§e三叉戟击落恶魂 §f$ghastHits/3")
                 instance.broadcast("§e朱雀之戟命中恶魂！($ghastHits/3)")
                 instance.broadcastSound(Sound.ENTITY_GHAST_HURT)
                 // 恶魂反击

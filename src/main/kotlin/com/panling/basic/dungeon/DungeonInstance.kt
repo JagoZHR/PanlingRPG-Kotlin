@@ -2,13 +2,14 @@ package com.panling.basic.dungeon
 
 import com.panling.basic.PanlingBasic
 import com.panling.basic.dungeon.phase.AbstractDungeonPhase
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Bukkit
 import org.bukkit.Chunk
 import org.bukkit.Location
 import org.bukkit.Sound
 import org.bukkit.World
+import org.bukkit.boss.BarColor
+import org.bukkit.boss.BarStyle
+import org.bukkit.boss.BossBar
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
@@ -18,43 +19,38 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.event.entity.EntityDeathEvent
 import org.bukkit.event.entity.EntityTargetEvent
 import org.bukkit.event.player.PlayerInteractEvent
+import org.bukkit.potion.PotionEffect
+import org.bukkit.potion.PotionEffectType
 import org.bukkit.scheduler.BukkitTask
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * 副本游戏实例
- * 代表一局正在进行的副本游戏
- */
 class DungeonInstance(
     val plugin: PanlingBasic,
-    val instanceId: String, // [修改] 这里改用 String 类型的 instanceId 以匹配 Manager
+    val instanceId: String,
     val template: DungeonTemplate,
     val world: World,
-    initialPlayers: List<Player> // [修改] 构造函数接收初始玩家列表
+    initialPlayers: List<Player>
 ) {
-    // 玩家集合
     val players = ConcurrentHashMap.newKeySet<UUID>()
 
-    // 状态管理
     var state: DungeonState = DungeonState.LOADING
         private set
 
-    // [修改] 当前阶段 (不再使用 List<Phase> 和 Index)
     var currentPhase: AbstractDungeonPhase? = null
         private set
 
     private var startTime: Long = 0L
     private var tickTask: BukkitTask? = null
 
-    // [修复] 新增 tick 计数器，供 Phase 使用
     var tickCount: Long = 0L
         private set
 
-    // 强制加载区块，防止玩家复活时因距离远导致区块卸载怪物消失
     private val loadedChunks = mutableSetOf<Chunk>()
 
-    // 防止副本怪物内讧
+    private val bossBar: BossBar = Bukkit.createBossBar("", BarColor.YELLOW, BarStyle.SOLID)
+    private var phaseTitle: String = ""
+
     private val noInfightingListener = object : Listener {
         @EventHandler
         fun onTarget(event: EntityTargetEvent) {
@@ -69,55 +65,44 @@ class DungeonInstance(
     lateinit var centerLocation: Location
 
     init {
-        // 初始化玩家列表
         initialPlayers.forEach { players.add(it.uniqueId) }
     }
 
-    /**
-     * 启动副本
-     * [修改] 必须传入初始阶段
-     */
     fun start(initialPhase: AbstractDungeonPhase) {
         if (state != DungeonState.LOADING) return
 
         state = DungeonState.RUNNING
         startTime = System.currentTimeMillis()
-        tickCount = 0L // 重置计数器
+        tickCount = 0L
 
-        // 启动心跳任务
-        tickTask = Bukkit.getScheduler().runTaskTimer(plugin, Runnable {
-            onTick()
-        }, 0L, 1L)
+        tickTask = Bukkit.getScheduler().runTaskTimer(plugin, Runnable { onTick() }, 0L, 1L)
 
-        // 进入第一阶段
+        bossBar.color = BarColor.YELLOW
+        bossBar.style = BarStyle.SOLID
+        players.forEach { uid -> Bukkit.getPlayer(uid)?.let { bossBar.addPlayer(it) } }
+        bossBar.isVisible = true
+
         transitionToPhase(initialPhase)
-
-        // 强制加载副本所有区块（主区域 + jitan 偏移区域）
         lockChunks()
-
-        // 注册反内讧监听
         Bukkit.getPluginManager().registerEvents(noInfightingListener, plugin)
 
         broadcast("§a副本已启动！目标：${template.displayName}")
     }
 
-    /**
-     * 切换到下一个阶段
-     * [修改] 由当前阶段显式传入下一个阶段对象
-     */
     fun nextPhase(next: AbstractDungeonPhase) {
         if (state != DungeonState.RUNNING) return
-        transitionToPhase(next)
+        bossBar.color = BarColor.GREEN
+        bossBar.setTitle("§a✅ 阶段完成")
+        Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+            bossBar.color = BarColor.YELLOW
+            transitionToPhase(next)
+        }, 40L)
     }
 
     private fun transitionToPhase(phase: AbstractDungeonPhase) {
-        // 结束旧阶段
-        currentPhase?.end()
-
-        // 启动新阶段
         currentPhase = phase
-        plugin.logger.info("副本 $instanceId 切换阶段 -> ${phase.javaClass.simpleName}")
-
+        phaseTitle = ""
+        plugin.logger.info("[副本] $instanceId 切换阶段 -> ${phase.javaClass.simpleName}")
         try {
             phase.start()
         } catch (e: Exception) {
@@ -127,42 +112,50 @@ class DungeonInstance(
         }
     }
 
+    fun setPhaseTitle(title: String, progress: Double = -1.0) {
+        phaseTitle = title
+        if (progress >= 0.0) bossBar.setProgress(progress.coerceIn(0.0, 1.0))
+    }
+
+    fun glowEntity(entity: LivingEntity) {
+        entity.addPotionEffect(PotionEffect(PotionEffectType.GLOWING, Int.MAX_VALUE, 0, false, false))
+    }
+
+    fun unglowEntity(entity: LivingEntity) {
+        entity.removePotionEffect(PotionEffectType.GLOWING)
+    }
+
     private fun onTick() {
         if (state != DungeonState.RUNNING) return
-
-        // [修复] 计数器自增
         tickCount++
 
-        // 检查超时 (每秒检查一次即可，节省性能)
         if (tickCount % 20 == 0L) {
             val elapsed = (System.currentTimeMillis() - startTime) / 1000
+            val remaining = (template.timeLimit - elapsed).coerceAtLeast(0)
+            val min = remaining / 60
+            val sec = remaining % 60
+            val timeStr = "§e⏳ ${min}:${sec.toString().padStart(2, '0')}"
+            val title = if (phaseTitle.isNotEmpty()) "$timeStr  §7|  $phaseTitle" else timeStr
+            bossBar.setTitle(title)
+            bossBar.setProgress(remaining.toDouble() / template.timeLimit)
+
+            if (remaining <= 60) bossBar.color = BarColor.RED
+
             if (elapsed > template.timeLimit) {
                 failDungeon("§c时间耗尽！")
                 return
             }
         }
 
-        // 驱动当前阶段
         currentPhase?.onTick()
-
-        // 可选：更新计分板/Actionbar
-        // players.forEach { ... }
     }
 
-    // ==========================================
-    // 事件分发 (代理给 currentPhase)
-    // ==========================================
-
     fun handleInteract(event: PlayerInteractEvent) {
-        if (state == DungeonState.RUNNING) {
-            currentPhase?.onInteract(event)
-        }
+        if (state == DungeonState.RUNNING) currentPhase?.onInteract(event)
     }
 
     fun handleMobDeath(event: EntityDeathEvent) {
-        if (state == DungeonState.RUNNING) {
-            currentPhase?.onMobDeath(event)
-        }
+        if (state == DungeonState.RUNNING) currentPhase?.onMobDeath(event)
     }
 
     fun handlePlayerDeath(player: Player) {
@@ -172,77 +165,48 @@ class DungeonInstance(
                 val p = Bukkit.getPlayer(uid)
                 p == null || p.isDead || !p.isOnline
             }
-            if (allDead) {
-                failDungeon("§c全员阵亡")
-            } else {
-                plugin.dungeonManager.handleDungeonDeath(player)
-            }
+            if (allDead) failDungeon("§c全员阵亡")
+            else plugin.dungeonManager.handleDungeonDeath(player)
         }
     }
 
     fun handleDamage(event: EntityDamageByEntityEvent) {
-        if (state == DungeonState.RUNNING) {
-            currentPhase?.onDamage(event)
-        }
+        if (state == DungeonState.RUNNING) currentPhase?.onDamage(event)
     }
 
-    /** 处理内部指令（来自 InternalCommand） */
     fun handleQAnswer(player: Player, letter: String) {
-        if (state == DungeonState.RUNNING) {
-            currentPhase?.onQAnswer(player, letter)
-        }
+        if (state == DungeonState.RUNNING) currentPhase?.onQAnswer(player, letter)
     }
 
-    // ==========================================
-    // 结算与销毁
-    // ==========================================
-
-    /**
-     * 挑战成功 (通常由最后一个 Phase 调用)
-     */
     fun winDungeon() {
         if (state != DungeonState.RUNNING) return
         broadcast("§a恭喜！副本挑战成功！")
         broadcastSound(Sound.UI_TOAST_CHALLENGE_COMPLETE)
-
-        // 延时关闭
         state = DungeonState.ENDING
-        Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-            stop()
-        }, 200L) // 10秒后传出
+        bossBar.removeAll()
+        Bukkit.getScheduler().runTaskLater(plugin, Runnable { stop() }, 200L)
     }
 
-    /**
-     * 挑战失败 — 广播消息后立即关闭副本
-     */
     fun failDungeon(reason: String) {
         if (state != DungeonState.RUNNING) return
         broadcast(reason)
         broadcastSound(Sound.ENTITY_VILLAGER_NO)
-
         state = DungeonState.ENDING
         stop()
     }
 
-    /**
-     * 停止并清理
-     * (Manager.removeInstance 会调用 leave，这里负责内部任务清理)
-     */
     fun stop() {
         tickTask?.cancel()
         currentPhase?.end()
-        // 释放所有强加载区块
+        bossBar.removeAll()
         loadedChunks.forEach { try { it.removePluginChunkTicket(plugin) } catch (_: Exception) {} }
         loadedChunks.clear()
-        // 注销反内讧监听
         HandlerList.unregisterAll(noInfightingListener)
-        // 通知 Manager 销毁我
         plugin.dungeonManager.removeInstance(instanceId)
         plugin.logger.info("[副本] $instanceId (${template.displayName}) 已关闭，区块已释放")
     }
 
     private fun lockChunks() {
-        // 仅支持复活的副本才需要强加载（防止玩家在玻璃笼子时区块卸载）
         if (template.reviveCost <= 0.0) return
         val dims = SchematicManager.getDimensions(template.schematicName)
         val halfX = ((dims?.first ?: 500) / 16 / 2) + 3
@@ -257,39 +221,24 @@ class DungeonInstance(
         }
     }
 
-    // ==========================================
-    // 玩家管理
-    // ==========================================
-
     fun join(player: Player) {
         players.add(player.uniqueId)
-        // 传送到副本出生点
-        // [修改] 计算绝对坐标：中心点 + 偏移量
         val spawn = centerLocation.clone().add(template.spawnOffset)
         player.teleport(spawn)
+        bossBar.addPlayer(player)
         player.sendMessage("§e你加入了副本：${template.displayName}")
     }
 
     fun leave(player: Player) {
         players.remove(player.uniqueId)
-
-        // 传送到退出点
+        bossBar.removePlayer(player)
         val exit = template.exitLoc ?: Bukkit.getWorld("world")?.spawnLocation
-        if (exit != null) {
-            player.teleport(exit)
-        }
-
+        if (exit != null) player.teleport(exit)
         player.sendMessage("§e你离开了副本。")
     }
 
-    // ==========================================
-    // 工具方法
-    // ==========================================
-
     fun broadcast(message: String) {
-        players.forEach { uid ->
-            Bukkit.getPlayer(uid)?.sendMessage(message)
-        }
+        players.forEach { uid -> Bukkit.getPlayer(uid)?.sendMessage(message) }
     }
 
     fun broadcastSound(sound: Sound) {

@@ -49,6 +49,8 @@ class BaihuJitanPhase(
         instance.broadcastSound(Sound.ENTITY_ENDERMAN_TELEPORT)
         for (uuid in instance.players) Bukkit.getPlayer(uuid)?.teleport(jitanCenter.clone().add((Random.nextDouble() - 0.5) * 4, 2.0, (Random.nextDouble() - 0.5) * 4))
 
+        instance.setPhaseTitle("§f奔向传送阵")
+
         // 阶段二会在 onTick 中通过 tp1 接近检测触发（所有玩家传送到 tp2）
         phase2Triggered.add(false)
 
@@ -80,6 +82,7 @@ class BaihuJitanPhase(
                 val p = Bukkit.getPlayer(uuid) ?: continue
                 if (p.location.distanceSquared(tp1) < 9.0) {
                     phase2 = true
+                    instance.setPhaseTitle("§f绕过禁卫 §7抵达终点")
                     instance.broadcast("§f传送阵已激活！§e白虎禁卫苏醒了——走位绕过它们！")
                     instance.broadcastSound(Sound.ENTITY_ZOMBIE_AMBIENT)
                     val tp2 = toWorld(tp2Loc)

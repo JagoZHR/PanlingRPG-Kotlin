@@ -73,6 +73,7 @@ class ZhenpanguPhase(
 
     override fun start() {
         jitanCenter = instance.centerLocation.clone().add(0.0, 0.0, 5000.0)
+        instance.setPhaseTitle("§5击败四方守护者")
         instance.broadcast("§5§l真·盘古§e的幻境已然展开 —— 击败四方守护者，直面盘古幻影！")
         instance.broadcastSound(Sound.ENTITY_ENDER_DRAGON_GROWL)
         for (uuid in instance.players) Bukkit.getPlayer(uuid)?.teleport(jitanCenter.clone().add((Random.nextDouble() - 0.5) * 4, 2.0, (Random.nextDouble() - 0.5) * 4))
@@ -169,7 +170,7 @@ class ZhenpanguPhase(
             if (p.location.y < 10.0 && !p.isDead) {
                 p.fallDistance = 0f; p.damage(30.0)
                 p.teleport(jitanCenter.clone().add((Random.nextDouble() - 0.5) * 4, 2.0, (Random.nextDouble() - 0.5) * 4))
-                p.sendMessage("§c你坠入了深渊！")
+                p.sendMessage("§c你坠入了深渊！§7（提示：深渊不会击杀你，找到盘古幻影即可）")
             }
         }
         // 清理坠落怪物
@@ -212,6 +213,8 @@ class ZhenpanguPhase(
                     ev.lootTable = null; ev.isPersistent = true; ev.removeWhenFarAway = false
                     ev.equipment?.let { it.helmetDropChance = 0f; it.chestplateDropChance = 0f; it.leggingsDropChance = 0f; it.bootsDropChance = 0f }
                     bigBoss = ev
+                    instance.glowEntity(ev)
+                    instance.setPhaseTitle("§5盘古幻影 §f100%")
                     skill1Cd = 100; skill2Cd = 60; skill3Cd = 140; skill4Cd = 9999; skill4Unlocked = false
                     spawnTimer = 300
                     break
@@ -234,6 +237,8 @@ class ZhenpanguPhase(
         // 大Boss阶段
         if (bigBossActive && bigBoss != null) {
             val b = bigBoss!!
+            val pct = (b.health / b.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)!!.baseValue * 100).toInt()
+            instance.setPhaseTitle("§5盘古幻影 §f${pct}%")
             if (!b.isValid || b.isDead) {
                 isFinished = true
                 instance.broadcast("§5§l盘古幻影已被击败！真·盘古的试炼终于完成！")

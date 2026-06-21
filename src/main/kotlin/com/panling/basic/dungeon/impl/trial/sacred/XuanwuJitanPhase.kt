@@ -82,6 +82,8 @@ class XuanwuJitanPhase(
         for ((a, b) in linePairs) {
             val wa = toWorld(a); val wb = toWorld(b); val t = spawnTurtle(wa); lineTurtles.add(LineTurtle(t, wa, wb))
         }
+        instance.setPhaseTitle("§3穿越玄龟之阵 §7抵达中心")
+
         // 弹球龟
         val bt = spawnTurtle(center); bouncy = BouncyTurtle(bt, Vector(Random.nextDouble() - 0.5, 0.0, Random.nextDouble() - 0.5).normalize().multiply(1.2))
 
@@ -191,11 +193,17 @@ class XuanwuJitanPhase(
                 b.getAttribute(Attribute.MAX_HEALTH)?.let { attr -> attr.baseValue *= scale; b.health = attr.baseValue }
                 b.getAttribute(Attribute.ATTACK_DAMAGE)?.let { attr -> attr.baseValue *= 1.0 + (instance.players.size - 1) * 0.1 }
                 b.addPotionEffect(org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS, Int.MAX_VALUE, 3, false, false))
-                boss = b; nextVortexTick = instance.tickCount + 100L; nextBreathTick = instance.tickCount + 200L
+                boss = b
+                instance.glowEntity(b)
+                instance.setPhaseTitle("§3玄武幻影 §f100%")
+                nextVortexTick = instance.tickCount + 100L; nextBreathTick = instance.tickCount + 200L
             }
         } else {
             val b = boss ?: return
             if (!b.isValid || b.isDead) { win(); return }
+
+            val pct = (b.health / b.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)!!.baseValue * 100).toInt()
+            instance.setPhaseTitle("§3玄武幻影 §f${pct}%")
 
             // 漩涡
             if (instance.tickCount >= nextVortexTick) {

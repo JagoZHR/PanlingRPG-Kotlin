@@ -125,6 +125,24 @@ class SacredMountainTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plug
         }
         override fun onTick() {
             if (isFinished) return
+
+            // 核心血量 BossBar（每秒更新）
+            if (instance.tickCount % 20 == 0L) {
+                val sb = StringBuilder()
+                for (b in listOf("qinglong", "zhuque", "xuanwu", "baihu")) {
+                    val bt = clearedBeasts.contains(b)
+                    if (bt) { sb.append("§7${BEAST_NAME[b]} ✓  "); continue }
+                    val c = cores[b]
+                    if (c != null && c.isValid && !c.isDead) {
+                        val pct = (c.health / c.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)!!.baseValue * 100).toInt()
+                        sb.append("${BEAST_NAME[b]} ${pct}%  ")
+                    } else if (c != null) {
+                        sb.append("${BEAST_NAME[b]} §c0%  ")
+                    }
+                }
+                instance.setPhaseTitle(sb.toString().trim())
+            }
+
             val dying = mutableListOf<String>(); for ((b, c) in cores) { if (!c.isValid || c.isDead) dying.add(b) }
             for (b in dying) {
                 cores.remove(b); coreTimers.remove(b); instance.broadcast("${BEAST_NAME[b]}§e核心已破碎！幻境之门开启..."); instance.broadcastSound(Sound.BLOCK_GLASS_BREAK)

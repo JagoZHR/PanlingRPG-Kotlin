@@ -143,6 +143,7 @@ class QinglongJitanPhase(
             if (event.entity == pt.entity && pt.id !in deadGuardians) {
                 deadGuardians.add(pt.id)
                 lastKilledPosition = pt.id
+                instance.setPhaseTitle("§a守护者 §f${deadGuardians.size}/4")
                 return
             }
         }
@@ -277,6 +278,7 @@ class QinglongJitanPhase(
             pt.entity = m
             pulseOffsets[pt.id] = Random.nextLong(0, 80)
         }
+        instance.setPhaseTitle("§a守护者 §f0/4")
         areaTimer = Random.nextInt(200, 360)
     }
 

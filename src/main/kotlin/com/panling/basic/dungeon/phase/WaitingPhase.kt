@@ -24,17 +24,16 @@ abstract class WaitingPhase(
 
     override fun onTick() {
         if (ticksRemaining > 0) {
-            // 每 20 Tick (1秒) 提示一次
             if (ticksRemaining % 20 == 0) {
                 val secondsLeft = ticksRemaining / 20
-                // 只在特定时间点广播，防止刷屏
                 if (secondsLeft <= 5 || secondsLeft % 10 == 0) {
                     instance.broadcast("§7距离开启还有 $secondsLeft 秒")
                 }
             }
             ticksRemaining--
-        } else {
-            // 时间到
+        } else if (ticksRemaining == 0) {
+            // 时间到 — 只触发一次
+            ticksRemaining = -1
             onTimeout()
         }
     }
