@@ -3,6 +3,7 @@ package com.panling.basic.command.impl
 import com.panling.basic.PanlingBasic
 import com.panling.basic.command.SubCommand
 import com.panling.basic.npc.impl.GiveQuestAction
+import com.panling.basic.ui.CastingHallUI
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 
@@ -54,6 +55,10 @@ class InternalCommand(plugin: PanlingBasic) : SubCommand(plugin) {
                 if (args.size < 2) return
                 val instance = plugin.dungeonManager.getInstance(player) ?: return
                 instance.handleQAnswer(player, args[1])
+            }
+
+            "castinghall" -> {
+                CastingHallUI(plugin).open(player)
             }
         }
     }

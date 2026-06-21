@@ -98,7 +98,77 @@ class StatCalculator(
             value = manager.applyBuffsToValue(player, key, value)
         }
 
+        // 6. 四象加护（试炼通关永久加成）
+        value = applyTrialBuffs(player, key, value)
+
+        // 7. 铸灵殿（装备提交永久加成）
+        value = applySubmittedBuffs(player, key, value)
+
         return value
+    }
+
+    private fun applySubmittedBuffs(player: Player, key: NamespacedKey, value: Double): Double {
+        val submitted = PanlingBasic.instance.playerDataManager.getSubmittedItems(player)
+        if (submitted.isEmpty()) return value
+
+        val regionBonuses = mapOf(
+            "forest" to BasicKeys.ATTR_PHYSICAL_DAMAGE,
+            "desert" to BasicKeys.ATTR_CRIT_RATE,
+            "cave" to BasicKeys.ATTR_ARMOR_PEN,
+            "lake" to BasicKeys.ATTR_DEFENSE,
+        )
+        val bonusValues = mapOf("forest" to 8.0, "desert" to 0.05, "cave" to 8.0, "lake" to 8.0)
+
+        // 单件加成
+        val slotBonus = when (key) {
+            BasicKeys.ATTR_PHYSICAL_DAMAGE -> submitted.count { it.endsWith(":weapon") } * 5.0
+            BasicKeys.ATTR_DEFENSE -> {
+                submitted.count { it.endsWith(":helmet") } * 3.0 +
+                submitted.count { it.endsWith(":chestplate") } * 4.0 +
+                submitted.count { it.endsWith(":leggings") } * 3.0
+            }
+            BasicKeys.ATTR_MOVE_SPEED -> submitted.count { it.endsWith(":boots") } * 0.03
+            else -> 0.0
+        }
+
+        // 全套额外
+        var fullSetBonus = 0.0
+        for ((region, attr) in regionBonuses) {
+            if (key == attr && PanlingBasic.instance.playerDataManager.isRegionFullSet(player, region)) {
+                fullSetBonus += bonusValues[region] ?: 0.0
+            }
+        }
+
+        // 暴击率是百分比属性
+        if (key == BasicKeys.ATTR_CRIT_RATE && fullSetBonus > 0) {
+            return value + fullSetBonus // 0.05 = 5%
+        }
+
+        return value + slotBonus + fullSetBonus
+    }
+
+    private fun applyTrialBuffs(player: Player, key: NamespacedKey, value: Double): Double {
+        val raw = player.persistentDataContainer.get(BasicKeys.DATA_TRIALS_COMPLETED, PersistentDataType.STRING) ?: ""
+        val trials = if (raw.isEmpty()) emptySet() else raw.split(",").toSet()
+
+        // 百分比属性：直接加百分比点（基础为0，乘法无效）
+        val add = when (key) {
+            BasicKeys.ATTR_PHYSICAL_PERCENT -> if ("vermillion_trial" in trials) 0.10 else 0.0
+            BasicKeys.ATTR_ARMOR_PEN_PERCENT -> if ("white_tiger_trial" in trials) 0.10 else 0.0
+            BasicKeys.ATTR_MAX_HEALTH_PERCENT -> if ("black_tortoise_trial" in trials) 0.10 else 0.0
+            else -> 0.0
+        }
+        if (add != 0.0) return value + add
+
+        // 基础属性：乘法（装备已有基础值）
+        val mult = when (key) {
+            BasicKeys.ATTR_MOVE_SPEED -> if ("trial_wood" in trials) 1.08 else 1.0
+            BasicKeys.ATTR_PHYSICAL_DAMAGE -> if ("vermillion_trial" in trials) 1.10 else 1.0
+            BasicKeys.ATTR_ARMOR_PEN -> if ("white_tiger_trial" in trials) 1.10 else 1.0
+            BasicKeys.ATTR_MAX_HEALTH -> if ("black_tortoise_trial" in trials) 1.10 else 1.0
+            else -> 1.0
+        }
+        return value * mult
     }
 
     private fun recalculateAllStats(player: Player) {

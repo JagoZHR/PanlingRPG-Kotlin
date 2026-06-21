@@ -19,6 +19,7 @@ import org.bukkit.entity.Ravager
 import org.bukkit.entity.Silverfish
 import org.bukkit.entity.LivingEntity
 import org.bukkit.event.entity.EntityDeathEvent
+import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
@@ -34,40 +35,26 @@ class BlackTortoiseTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugi
     override val templateId = "black_tortoise_trial"
     override val waitDuration = 10
 
+    private fun getHpMult(player: Player): Double = when (plugin.playerDataManager.getTrialsCompleted(player)) {
+        0 -> 1.0; 1 -> 1.5; 2 -> 2.2; 3 -> 3.0; else -> 1.0
+    }
+    private fun getAtkMult(player: Player): Double = when (plugin.playerDataManager.getTrialsCompleted(player)) {
+        0 -> 1.0; 1 -> 1.3; 2 -> 1.7; 3 -> 2.2; else -> 1.0
+    }
+
     private fun getHpScale(instance: DungeonInstance): Double = 1.0 + (instance.players.size - 1) * 0.5
     private fun getAtkScale(instance: DungeonInstance): Double = 1.0 + (instance.players.size - 1) * 0.1
 
     // ==========================================
-    // 奖励：解锁 T5 装备 + T5 法宝
+    // 奖励
     // ==========================================
     override fun createRewardConfig(instance: DungeonInstance): RewardConfig {
         return RewardConfig(
             title = "§3[玄武试炼] 冥渊试炼通过！",
             autoReward = true,
             autoRewardDelay = 100L,
-            onReward = { player -> unlockT5Recipes(player) }
+            money = 200.0
         )
-    }
-
-    private fun unlockT5Recipes(player: Player) {
-        val playerClass = plugin.playerDataManager.getPlayerClass(player)
-        val allRecipes = plugin.forgeManager.getAllRecipes()
-        var unlockedCount = 0
-
-        allRecipes.forEach { recipe ->
-            if (recipe.id.contains("_t5") || recipe.id.contains("fabao_t5")) {
-                if (plugin.itemManager.isItemAllowedForClass(recipe.targetItemId, playerClass)) {
-                    if (!plugin.forgeManager.hasUnlockedRecipe(player, recipe.id)) {
-                        plugin.forgeManager.unlockRecipe(player, recipe.id)
-                        unlockedCount++
-                    }
-                }
-            }
-        }
-
-        if (unlockedCount > 0) {
-            player.sendMessage("§b[系统] 你领悟了 ${unlockedCount} 个五阶锻造配方！")
-        }
     }
 
     override fun createGamePhase(instance: DungeonInstance): AbstractDungeonPhase {
@@ -212,6 +199,17 @@ class BlackTortoiseTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugi
     // ==========================================
     inner class Phase2Boss(instance: DungeonInstance) : AbstractCombatPhase(plugin, instance) {
 
+        // Boss技能
+        private var bossRef: LivingEntity? = null
+        private var nextVortexTick = 0L
+        private var nextBreathTick = 0L
+        private var shellReflectActive = false
+
+        private fun getTrialsDone(): Int {
+            val p = instance.players.mapNotNull { Bukkit.getPlayer(it) }.firstOrNull() ?: return 0
+            return plugin.playerDataManager.getTrialsCompleted(p)
+        }
+
         override fun start() {
             val hpScale = getHpScale(instance)
             val atkScale = getAtkScale(instance)
@@ -219,9 +217,10 @@ class BlackTortoiseTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugi
             val center = instance.centerLocation
 
             // 重甲冥龟（小型劫掠兽）
-            val ravager = plugin.mobManager.spawnMob(center.clone().add(0.0, 1.0, 0.0), "dungeon_black_tortoise_boss") as? Ravager ?: return
+            val ravager = plugin.mobManager.spawnMob(center.clone().add(0.0, 1.0, 0.0), "dungeon_xuanwu_boss") as? Ravager ?: return
             ravager.isAware = true
             scaleMob(ravager, hpScale, atkScale)
+            bossRef = ravager
             // 劫掠兽不走 MOVEMENT_SPEED 属性，用药水减速替代
             ravager.addPotionEffect(PotionEffect(PotionEffectType.SLOWNESS, Int.MAX_VALUE, 3, false, false))
             spawnMob(ravager)
@@ -235,19 +234,89 @@ class BlackTortoiseTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugi
                 }
                 // 主蛇
                 val loc1 = center.clone().add(offset).add(0.0, 1.0, 0.0)
-                val sf1 = plugin.mobManager.spawnMob(loc1, "dungeon_black_tortoise_add") as? Silverfish ?: continue
+                val sf1 = plugin.mobManager.spawnMob(loc1, "dungeon_xuanwu_snake") as? Silverfish ?: continue
                 scaleMob(sf1, hpScale, atkScale)
                 spawnMob(sf1)
 
                 // 副蛇 (半血半攻)
                 val loc2 = center.clone().add(offset).add(1.0, 1.0, 0.0)
-                val sf2 = plugin.mobManager.spawnMob(loc2, "dungeon_black_tortoise_add") as? Silverfish ?: continue
-                scaleMob(sf2, hpScale, atkScale, hpMult = 0.5, atkMult = 0.5)
+                val sf2 = plugin.mobManager.spawnMob(loc2, "dungeon_xuanwu_snake") as? Silverfish ?: continue
+                scaleMob(sf2, 0.5, 0.5)
                 spawnMob(sf2)
             }
 
             instance.broadcast("§3重甲冥龟 §f与 §b${count * 2} 条幽水灵蛇 §f出现了！")
+            nextVortexTick = instance.tickCount + Random.nextLong(140, 200) // 7-10s
+            nextBreathTick = instance.tickCount + Random.nextLong(240, 320) // 12-16s
             instance.broadcastSound(Sound.ENTITY_RAVAGER_ROAR)
+            nextVortexTick = instance.tickCount + Random.nextLong(140, 200)
+            nextBreathTick = instance.tickCount + Random.nextLong(240, 320)
+        }
+
+        override fun onTick() {
+            val b = bossRef ?: return
+            if (!b.isValid || b.isDead) return
+            val now = instance.tickCount
+            val td = getTrialsDone()
+
+            if (now >= nextVortexTick) { vortexPull(b); nextVortexTick = now + Random.nextLong(160, 220) }
+            if (td >= 1 && now >= nextBreathTick) { frostBreath(b); nextBreathTick = now + Random.nextLong(240, 320) }
+            shellReflectActive = td >= 3
+        }
+
+        private fun vortexPull(boss: LivingEntity) {
+            instance.broadcast("§3重甲冥龟释放了漩涡吸力！")
+            instance.broadcastSound(Sound.ENTITY_ELDER_GUARDIAN_CURSE)
+            val loc = boss.location
+            // 水泡粒子
+            for (r in 1..10) for (j in 0 until 16) {
+                val angle = 2.0 * Math.PI * j / 16.0
+                val x = loc.x + Math.cos(angle) * r
+                val z = loc.z + Math.sin(angle) * r
+                boss.world.spawnParticle(Particle.BUBBLE_POP, x, loc.y + 0.3, z, 1, 0.0, 0.0, 0.0, 0.02)
+            }
+            for (uuid in instance.players) {
+                val p = Bukkit.getPlayer(uuid) ?: continue
+                if (p.location.distance(loc) <= 10.0) {
+                    val dir = loc.toVector().subtract(p.location.toVector()).normalize().multiply(2.0)
+                    p.velocity = dir.setY(0.3)
+                    p.addPotionEffect(PotionEffect(PotionEffectType.SLOWNESS, 30, 1, false, false))
+                    p.sendMessage("§3你被漩涡吸入了！")
+                }
+            }
+        }
+
+        private fun frostBreath(boss: LivingEntity) {
+            instance.broadcast("§b重甲冥龟喷出了冰霜吐息！")
+            instance.broadcastSound(Sound.ENTITY_ELDER_GUARDIAN_HURT)
+            val loc = boss.location
+            val dir = boss.location.direction
+            for (uuid in instance.players) {
+                val p = Bukkit.getPlayer(uuid) ?: continue
+                val toPlayer = p.location.toVector().subtract(loc.toVector())
+                if (toPlayer.length() <= 8.0 && dir.angle(toPlayer) < Math.toRadians(30.0)) {
+                    p.damage(30.0)
+                    p.addPotionEffect(PotionEffect(PotionEffectType.SLOWNESS, 60, 2, false, false))
+                    p.sendMessage("§b你被冰霜吐息冻结了！")
+                }
+            }
+            // Snow particles
+            for (i in 0 until 30) {
+                val x = loc.x + dir.x * 3 + (Random.nextDouble() - 0.5) * 4
+                val z = loc.z + dir.z * 3 + (Random.nextDouble() - 0.5) * 4
+                loc.world.spawnParticle(Particle.SNOWFLAKE, x, loc.y + 1.5, z, 1, 0.5, 0.5, 0.5, 0.02)
+            }
+        }
+
+        override fun onDamage(event: EntityDamageByEntityEvent) {
+            if (shellReflectActive && event.entity == bossRef) {
+                val damager = event.damager
+                if (damager is org.bukkit.entity.Projectile) {
+                    event.isCancelled = true
+                    damager.velocity = damager.velocity.multiply(-1.5)
+                    if (damager.shooter is Player) (damager.shooter as Player).sendMessage("§3龟壳反弹了你的弹射物！")
+                }
+            }
         }
 
         override fun onMobDeath(event: EntityDeathEvent) {
@@ -262,13 +331,16 @@ class BlackTortoiseTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugi
             goToRewardPhase(instance)
         }
 
-        private fun scaleMob(entity: LivingEntity, hpScale: Double, atkScale: Double, hpMult: Double = 1.0, atkMult: Double = 1.0) {
+        private fun scaleMob(entity: LivingEntity, hpMult: Double = 1.0, atkMult: Double = 1.0) {
+            val player = instance.players.mapNotNull { Bukkit.getPlayer(it) }.firstOrNull() ?: return
+            val dynHp = getHpMult(player)
+            val dynAtk = getAtkMult(player)
             entity.getAttribute(Attribute.MAX_HEALTH)?.let { attr ->
-                attr.baseValue = attr.baseValue * hpScale * hpMult
+                attr.baseValue = attr.baseValue * dynHp * hpMult
                 entity.health = attr.baseValue
             }
             entity.getAttribute(Attribute.ATTACK_DAMAGE)?.let { attr ->
-                attr.baseValue = attr.baseValue * atkScale * atkMult
+                attr.baseValue = attr.baseValue * dynAtk * atkMult
             }
         }
     }

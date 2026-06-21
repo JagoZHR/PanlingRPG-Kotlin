@@ -105,6 +105,14 @@ class DungeonManager(private val plugin: PanlingBasic) : Reloadable, Listener {
             return
         }
 
+        // 0.5 动态难度：已通过试炼越多，门槛越高
+        val trialsDone = plugin.playerDataManager.getTrialsCompleted(leader)
+        val dynamicMinLevel = 10 + (trialsDone * 10)
+        if (leader.level < dynamicMinLevel) {
+            leader.sendMessage("§c你的实力还需磨练！需要 Lv.$dynamicMinLevel 才能继续挑战。（已通过 $trialsDone 个试炼）")
+            return
+        }
+
         // 1. 获取玩家的队伍状态
         val party = plugin.partyManager.getParty(leader)
         val targetPlayers = mutableListOf<Player>()

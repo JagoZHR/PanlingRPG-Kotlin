@@ -31,6 +31,13 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
     override val templateId = "white_tiger_trial"
     override val waitDuration = 10
 
+    private fun getHpMult(player: Player): Double = when (plugin.playerDataManager.getTrialsCompleted(player)) {
+        0 -> 1.0; 1 -> 1.5; 2 -> 2.2; 3 -> 3.0; else -> 1.0
+    }
+    private fun getAtkMult(player: Player): Double = when (plugin.playerDataManager.getTrialsCompleted(player)) {
+        0 -> 1.0; 1 -> 1.3; 2 -> 1.7; 3 -> 2.2; else -> 1.0
+    }
+
     // ==========================================
     // 动态难度
     // ==========================================
@@ -38,39 +45,18 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
     private fun getAtkScale(instance: DungeonInstance): Double = 1.0 + (instance.players.size - 1) * 0.1
 
     // ==========================================
-    // 奖励：解锁 T4 装备 + T4 法宝
+    // 奖励
     // ==========================================
     override fun createRewardConfig(instance: DungeonInstance): RewardConfig {
         return RewardConfig(
             title = "§f[白虎试炼] 金锋试炼通过！",
             autoReward = true,
             autoRewardDelay = 100L,
-            onReward = { player -> unlockT4Recipes(player) }
+            money = 200.0
         )
     }
 
-    private fun unlockT4Recipes(player: Player) {
-        val playerClass = plugin.playerDataManager.getPlayerClass(player)
-        val allRecipes = plugin.forgeManager.getAllRecipes()
-        var unlockedCount = 0
-
-        allRecipes.forEach { recipe ->
-            // 解锁 _t4 配方（武器+防具）以及 fabao T4
-            if (recipe.id.contains("_t4") || recipe.id.contains("fabao_t4")) {
-                if (plugin.itemManager.isItemAllowedForClass(recipe.targetItemId, playerClass)) {
-                    if (!plugin.forgeManager.hasUnlockedRecipe(player, recipe.id)) {
-                        plugin.forgeManager.unlockRecipe(player, recipe.id)
-                        unlockedCount++
-                    }
-                }
-            }
-        }
-
-        if (unlockedCount > 0) {
-            player.sendMessage("§b[系统] 你领悟了 ${unlockedCount} 个四阶锻造配方！")
-        }
-    }
-
+    //
     // ==========================================
     // 玩法入口
     // ==========================================
@@ -85,7 +71,7 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
 
         private val durationTicks = 600L
         private val arenaHalf = 10.0
-        private val swordDamageBase = 15.0
+        private val swordDamageBase = 10.0
 
         private var startTick = 0L
         private var nextSwordTick = 0L
@@ -257,7 +243,18 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
 
         private val reflectDuration = 60L   // 3 秒
         private val reflectInterval = 100L  // 5 秒间隔
-        private val syncWindow = 60L        // 3 秒同步窗口
+        private var syncWindow = 60L        // 3 秒同步窗口
+
+        // 傀儡数量上限
+        private fun getGolemCap(): Int = when (getTrialsDone()) { 0 -> 6; 1 -> 8; 2 -> 10; 3 -> 12; else -> 6 }
+        private fun getTrialsDone(): Int {
+            val p = instance.players.mapNotNull { Bukkit.getPlayer(it) }.firstOrNull() ?: return 0
+            return plugin.playerDataManager.getTrialsCompleted(p)
+        }
+
+        // Boss技能
+        private var nextCrystalTick = 0L
+        private var splitUsed = false
 
         override fun start() {
             val count = instance.players.size
@@ -274,18 +271,19 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
             for (offset in offsets) {
                 // 主傀儡
                 val loc1 = center.clone().add(offset).add(0.0, 1.0, 0.0)
-                val golem1 = plugin.mobManager.spawnMob(loc1, "dungeon_white_tiger_golem") as? IronGolem ?: continue
+                val golem1 = plugin.mobManager.spawnMob(loc1, "dungeon_baihu_golem") as? IronGolem ?: continue
                 scaleMob(golem1, hpScale, atkScale)
                 golems[golem1] = golem1.getAttribute(Attribute.MAX_HEALTH)?.baseValue ?: 450.0
 
                 // 副傀儡 (半血半攻)
                 val loc2 = center.clone().add(offset).add(1.5, 1.0, 0.0)
-                val golem2 = plugin.mobManager.spawnMob(loc2, "dungeon_white_tiger_golem") as? IronGolem ?: continue
-                scaleMob(golem2, hpScale, atkScale, hpMult = 0.5, atkMult = 0.5)
+                val golem2 = plugin.mobManager.spawnMob(loc2, "dungeon_baihu_golem") as? IronGolem ?: continue
+                scaleMob(golem2, 0.5, 0.5)
                 golems[golem2] = golem2.getAttribute(Attribute.MAX_HEALTH)?.baseValue ?: 225.0
             }
 
             nextReflectTick = instance.tickCount + reflectInterval
+            nextCrystalTick = instance.tickCount + Random.nextLong(200, 300) // 10-15s首次晶刺
             instance.broadcast("§f${count} 个§e玄金傀儡§f已激活！必须在 3 秒内同时击杀全部！")
         }
 
@@ -312,6 +310,16 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
             // 检查复活条件：有傀儡死亡但同步窗口已过
             if (deadTicks.isNotEmpty() && now - lastDeathTick > syncWindow) {
                 reviveAll()
+            }
+
+            // === 晶刺爆发 (T4+) ===
+            val td = getTrialsDone()
+            if (td >= 2 && now >= nextCrystalTick) {
+                val livingGolems = golems.keys.filter { it.isValid && !it.isDead }
+                if (livingGolems.isNotEmpty()) {
+                    crystalBurst(livingGolems.random())
+                }
+                nextCrystalTick = now + Random.nextLong(240, 320) // 12-16s
             }
 
             // 检查存活数
@@ -393,6 +401,57 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
             golems.keys.removeIf { it.uniqueId == entity.uniqueId }
 
             instance.broadcast("§e玄金傀儡被击破！(剩余 ${golems.size} 个)")
+        // === 分裂 (T5+) ===
+        if (getTrialsDone() >= 3 && !splitUsed) {
+            splitUsed = true
+            instance.broadcast("§6玄金傀儡分裂了！")
+            repeat(2) {
+                val sloc = entity.location.clone().add((Random.nextDouble() - 0.5) * 3, 0.0, (Random.nextDouble() - 0.5) * 3)
+                val child = plugin.mobManager.spawnMob(sloc, "dungeon_baihu_golem") as? IronGolem ?: return@repeat
+                scaleMob(child, 0.5, 0.5)
+                if (reflectActive) { child.setMetadata("pl_reflect", FixedMetadataValue(plugin, true)); child.isGlowing = true }
+                golems[child] = child.getAttribute(Attribute.MAX_HEALTH)?.baseValue ?: 225.0
+            }
+        }
+        }
+
+        // --- 晶刺爆发 ---
+        private fun crystalBurst(golem: IronGolem) {
+            instance.broadcast("§e玄金傀儡释放了晶刺！")
+            instance.broadcastSound(Sound.BLOCK_GLASS_BREAK)
+            val loc = golem.location.clone()
+            val directions = listOf(0.0, Math.PI * 2 / 3, Math.PI * 4 / 3)
+            // 粒子前摇
+            for (d in directions) for (r in 1..8) {
+                val x = loc.x + Math.cos(d) * r
+                val z = loc.z + Math.sin(d) * r
+                loc.world.spawnParticle(Particle.ENCHANT, x, loc.y + 0.3, z, 3, 0.1, 0.1, 0.1, 0.0)
+            }
+            // 延迟伤害
+            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                if (!golem.isValid || golem.isDead) return@Runnable
+                for (d in directions) for (r in 1..8) {
+                    val x = loc.x + Math.cos(d) * r
+                    val z = loc.z + Math.sin(d) * r
+                    loc.world.spawnParticle(Particle.CRIT, x, loc.y + 0.3, z, 6, 0.0, 0.0, 0.0, 0.5)
+                }
+                for (uuid in instance.players) {
+                    val p = Bukkit.getPlayer(uuid) ?: continue
+                    if (p.location.distance(loc) <= 8.0) {
+                        // Check if player is in any of the three lines
+                        val dx = p.location.x - loc.x; val dz = p.location.z - loc.z
+                        val angle = Math.atan2(dz, dx)
+                        val inLine = directions.any {
+                            val diff = Math.abs(angle - it) % (Math.PI * 2)
+                            diff < 0.5 || diff > Math.PI * 2 - 0.5
+                        }
+                        if (inLine) {
+                            p.damage(35.0)
+                            p.sendMessage("§6你被晶刺击中了！")
+                        }
+                    }
+                }
+            }, 40L) // 2s delay
         }
 
         private fun reviveAll() {
@@ -401,20 +460,26 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
             val atkScale = getAtkScale(instance)
             var revived = 0
 
+            // 清理死傀儡
+            golems.keys.removeIf { !it.isValid || it.isDead }
+            val cap = getGolemCap()
+            if (golems.size >= cap) return
+
             val toRevive = deadTicks.keys.toList()
             deadTicks.clear()
+            val canRevive = minOf(toRevive.size, (cap - golems.size + 1) / 2) // 每个死傀儡复活2个
 
-            for (uuid in toRevive) {
+            for (uuid in toRevive.take(canRevive)) {
                 repeat(2) { i ->
                     val loc = center.clone().add(
                         (Random.nextDouble() - 0.5) * 4 + i.toDouble(),
                         1.0,
                         (Random.nextDouble() - 0.5) * 4
                     )
-                    val golem = plugin.mobManager.spawnMob(loc, "dungeon_white_tiger_golem") as? IronGolem ?: return@repeat
+                    val golem = plugin.mobManager.spawnMob(loc, "dungeon_baihu_golem") as? IronGolem ?: return@repeat
                     // 复活半血：主 0.5 倍，副 0.25 倍
                     val subMult = if (i == 0) 0.5 else 0.25
-                    scaleMob(golem, hpScale, atkScale, hpMult = subMult, atkMult = subMult)
+                    scaleMob(golem, subMult, subMult)
 
                     if (reflectActive) {
                         golem.setMetadata("pl_reflect", FixedMetadataValue(plugin, true))
@@ -457,14 +522,16 @@ class WhiteTigerTrialLogic(plugin: PanlingBasic) : StandardDungeonLogic(plugin) 
             deadTicks.clear()
         }
 
-        // 从 YAML 基值 × 难度倍率缩放 (速度不缩放)
-        private fun scaleMob(entity: LivingEntity, hpScale: Double, atkScale: Double, hpMult: Double = 1.0, atkMult: Double = 1.0) {
+        private fun scaleMob(entity: LivingEntity, hpMult: Double = 1.0, atkMult: Double = 1.0) {
+            val player = instance.players.mapNotNull { Bukkit.getPlayer(it) }.firstOrNull() ?: return
+            val dynHp = getHpMult(player)
+            val dynAtk = getAtkMult(player)
             entity.getAttribute(Attribute.MAX_HEALTH)?.let { attr ->
-                attr.baseValue = attr.baseValue * hpScale * hpMult
+                attr.baseValue = attr.baseValue * dynHp * hpMult
                 entity.health = attr.baseValue
             }
             entity.getAttribute(Attribute.ATTACK_DAMAGE)?.let { attr ->
-                attr.baseValue = attr.baseValue * atkScale * atkMult
+                attr.baseValue = attr.baseValue * dynAtk * atkMult
             }
         }
     }

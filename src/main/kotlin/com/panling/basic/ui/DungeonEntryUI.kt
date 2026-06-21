@@ -30,6 +30,11 @@ class DungeonEntryUI(private val plugin: PanlingBasic) {
         val lore = ArrayList<Component>()
         lore.add(Component.text("§7------------------------"))
         lore.add(Component.text("§7等级限制: §f${template.minLevel}级"))
+        // 动态难度提示
+        val trialsDone = plugin.playerDataManager.getTrialsCompleted(player)
+        val tier = trialsDone + 2
+        val tierColor = when (trialsDone) { 0 -> "§a"; 1 -> "§e"; 2 -> "§6"; 3 -> "§c"; else -> "§a" }
+        lore.add(Component.text("§7试炼阶位: ${tierColor}T${tier}  §7(已通过 §f${trialsDone} §7个试炼)"))
         lore.add(Component.text("§7人数限制: §f${template.minPlayers}-${template.maxPlayers}人"))
         lore.add(Component.text("§7时间限制: §f${template.timeLimit / 60}分钟"))
         lore.add(Component.text("§7------------------------"))

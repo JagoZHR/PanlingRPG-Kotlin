@@ -5,7 +5,11 @@ import com.panling.basic.api.BasicKeys
 import com.panling.basic.api.PlayerClass
 import com.panling.basic.api.PlayerRace
 import com.panling.basic.api.PlayerSubClass
+import com.panling.basic.dungeon.DungeonCompleteEvent
+import org.bukkit.Bukkit
 import org.bukkit.NamespacedKey
+import org.bukkit.event.EventHandler
+import org.bukkit.event.Listener
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
@@ -15,6 +19,10 @@ import kotlin.collections.HashMap
 import kotlin.collections.HashSet
 
 class PlayerDataManager(private val plugin: JavaPlugin) {
+
+    init {
+        Bukkit.getPluginManager().registerEvents(TrialCompletionListener(), plugin)
+    }
 
     // 缓存池：玩家UUID -> (属性Key -> 数值)
     private val statCache = HashMap<UUID, MutableMap<NamespacedKey, Double>>()
@@ -588,5 +596,54 @@ class PlayerDataManager(private val plugin: JavaPlugin) {
         for (effect in player.activePotionEffects) {
             player.removePotionEffect(effect.type)
         }
+    }
+
+    // === 试炼完成追踪 ===
+
+    private val trialDungeons = setOf("trial_wood", "vermillion_trial", "white_tiger_trial", "black_tortoise_trial")
+
+    fun getTrialsCompleted(player: Player): Int {
+        val raw = player.persistentDataContainer.get(BasicKeys.DATA_TRIALS_COMPLETED, PersistentDataType.STRING) ?: ""
+        val count = if (raw.isEmpty()) 0 else raw.split(",").toSet().size
+        return minOf(count, 3)  // 封顶 T5
+    }
+
+    private fun addTrialCompleted(player: Player, templateId: String) {
+        val raw = player.persistentDataContainer.get(BasicKeys.DATA_TRIALS_COMPLETED, PersistentDataType.STRING) ?: ""
+        val set = if (raw.isEmpty()) mutableSetOf<String>() else raw.split(",").toMutableSet()
+        set.add(templateId)
+        player.persistentDataContainer.set(BasicKeys.DATA_TRIALS_COMPLETED, PersistentDataType.STRING, set.joinToString(","))
+    }
+
+    inner class TrialCompletionListener : Listener {
+        @EventHandler
+        fun onDungeonComplete(event: DungeonCompleteEvent) {
+            if (event.templateId in trialDungeons) {
+                addTrialCompleted(event.player, event.templateId)
+            }
+        }
+    }
+
+    // === 铸灵殿装备提交 ===
+
+    fun getSubmittedItems(player: Player): Set<String> {
+        val raw = player.persistentDataContainer.get(BasicKeys.DATA_SUBMITTED_ITEMS, PersistentDataType.STRING) ?: ""
+        return if (raw.isEmpty()) emptySet() else raw.split(",").toSet()
+    }
+
+    fun submitItem(player: Player, region: String, slot: String) {
+        val set = getSubmittedItems(player).toMutableSet()
+        set.add("$region:$slot")
+        player.persistentDataContainer.set(BasicKeys.DATA_SUBMITTED_ITEMS, PersistentDataType.STRING, set.joinToString(","))
+    }
+
+    fun hasSubmitted(player: Player, region: String, slot: String): Boolean {
+        return "$region:$slot" in getSubmittedItems(player)
+    }
+
+    fun isRegionFullSet(player: Player, region: String): Boolean {
+        val slots = listOf("weapon", "helmet", "chestplate", "leggings", "boots")
+        val submitted = getSubmittedItems(player)
+        return slots.all { "$region:$it" in submitted }
     }
 }

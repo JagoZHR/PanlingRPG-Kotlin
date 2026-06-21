@@ -6,8 +6,10 @@ import com.panling.basic.api.BasicKeys
 import com.panling.basic.api.PlayerClass
 import com.panling.basic.api.PlayerRace
 import com.panling.basic.api.PlayerSubClass
-import com.panling.basic.ui.BankUI
+import com.panling.basic.ui.BossGuideUI
+import com.panling.basic.ui.CastingHallUI
 import com.panling.basic.ui.PatchEmbedUI
+import com.panling.basic.ui.BankUI
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
@@ -222,11 +224,11 @@ class MenuManager(
         bossGuideBtn.itemMeta = bgMeta
         fullInv.setItem(7, bossGuideBtn)
 
-        // === Slot 16: 装备信息 ===
+        // === Slot 16: 加成信息 ===
         val equipInfoBtn = ItemStack(Material.IRON_CHESTPLATE)
         val eiMeta = equipInfoBtn.itemMeta
-        eiMeta.displayName(Component.text("§a§l[ 装备信息 ]").decoration(TextDecoration.ITALIC, false))
-        eiMeta.lore(listOf(Component.text("§7查看身上装备的贴片").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)))
+        eiMeta.displayName(Component.text("§a§l[ 加成信息 ]").decoration(TextDecoration.ITALIC, false))
+        eiMeta.lore(listOf(Component.text("§7查看装备贴片与试炼加成").color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)))
         eiMeta.persistentDataContainer.set(NamespacedKey(plugin, "menu_action"), PersistentDataType.STRING, "OPEN_EQUIP_INFO")
         equipInfoBtn.itemMeta = eiMeta
         fullInv.setItem(16, equipInfoBtn)
@@ -512,6 +514,17 @@ class MenuManager(
 
     @EventHandler
     fun onInventoryClick(event: InventoryClickEvent) {
+        // 铸灵殿界面
+        if (event.inventory.holder is CastingHallUI.Holder) {
+            event.isCancelled = true
+            val player = event.whoClicked as? Player ?: return
+            val clicked = event.currentItem ?: return
+            if (clicked.hasItemMeta() && event.clickedInventory == event.inventory) {
+                CastingHallUI(plugin).handleClick(player, event.inventory, event.slot, clicked)
+            }
+            return
+        }
+
         if (event.inventory.holder is MenuHolder) {
             event.isCancelled = true
 
@@ -641,6 +654,12 @@ class MenuManager(
             // 装备信息（贴片查看）
             if ("OPEN_EQUIP_INFO" == action) {
                 PatchEmbedUI().openEquipInfo(player)
+                return
+            }
+
+            // 铸灵殿
+            if ("OPEN_CASTING_HALL" == action) {
+                CastingHallUI(plugin).open(player)
                 return
             }
 

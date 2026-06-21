@@ -8,6 +8,7 @@ import com.panling.basic.listener.*
 import com.panling.basic.manager.*
 import com.panling.basic.party.*
 import com.panling.basic.quest.QuestLoader
+import com.panling.basic.npc.impl.CastingHallFeature
 import com.panling.basic.quest.feature.QuestNpcFeature
 import com.panling.basic.shop.feature.BarterNpcFeature
 import com.panling.basic.shop.feature.ShopNpcFeature
@@ -190,6 +191,7 @@ class PanlingBasic : JavaPlugin() {
         dialogManager.registerFeature(QuestNpcFeature(questManager))
         dialogManager.registerFeature(ShopNpcFeature())
         dialogManager.registerFeature(BarterNpcFeature())
+        dialogManager.registerFeature(CastingHallFeature())
 
         // 加载任务
         QuestLoader(this, questManager).loadAll()

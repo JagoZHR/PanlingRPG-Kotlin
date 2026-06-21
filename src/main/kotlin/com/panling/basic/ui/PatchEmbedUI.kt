@@ -324,6 +324,85 @@ class PatchEmbedUI {
                 }
             }
         }
+        // 最后一行：试炼加成
+        addTrialBuffsRow(player, inv)
         player.openInventory(inv)
+    }
+
+    private fun addTrialBuffsRow(player: Player, inv: Inventory) {
+        val raw = player.persistentDataContainer.get(BasicKeys.DATA_TRIALS_COMPLETED, PersistentDataType.STRING) ?: ""
+        val trials = if (raw.isEmpty()) emptySet() else raw.split(",").toSet()
+
+        val trialInfo = listOf(
+            Triple("trial_wood", "§a青龙·疾风", "移动速度 +8%"),
+            Triple("vermillion_trial", "§c朱雀·烈焰", "攻击力 +10%"),
+            Triple("white_tiger_trial", "§f白虎·金锋", "护甲穿透 +10%"),
+            Triple("black_tortoise_trial", "§3玄武·冥甲", "生命上限 +10%"),
+        )
+
+        // 试炼图标在 slot 45-48
+        for (i in trialInfo.indices) {
+            val (id, name, desc) = trialInfo[i]
+            val unlocked = id in trials
+            val icon = ItemStack(if (unlocked) Material.CYAN_DYE else Material.GRAY_DYE)
+            val meta = icon.itemMeta
+            meta.displayName(Component.text(if (unlocked) name else "§7$name §7(未解锁)").decoration(TextDecoration.ITALIC, false))
+            meta.lore(listOf(
+                Component.text(if (unlocked) "§a$desc" else "§7通关对应试炼后解锁").decoration(TextDecoration.ITALIC, false)
+            ))
+            icon.itemMeta = meta
+            inv.setItem(45 + i, icon)
+        }
+
+        // Slot 49: 统计
+        val summary = ItemStack(Material.KNOWLEDGE_BOOK)
+        val sm = summary.itemMeta
+        sm.displayName(Component.text("§e试炼进度: ${trials.size}/4").decoration(TextDecoration.ITALIC, false))
+        sm.lore(listOf(Component.text("§7完成全部四个试炼可解锁圣山终试").decoration(TextDecoration.ITALIC, false)))
+        summary.itemMeta = sm
+        inv.setItem(49, summary)
+
+        // Slot 50-53: 铸灵殿提交状态
+        addCastingHallRow(player, inv)
+    }
+
+    private fun addCastingHallRow(player: Player, inv: Inventory) {
+        val dm = PanlingBasic.instance.playerDataManager
+        val regions = listOf("forest", "desert", "cave", "lake")
+        val regionNames = listOf("§a青龙", "§c朱雀", "§f白虎", "§3玄武")
+        val fullBonusTexts = listOf("攻击力 +8", "暴击率 +5%", "护甲穿透 +8", "防御力 +8")
+        val totalSlots = listOf("weapon", "helmet", "chestplate", "leggings", "boots")
+        val slotTexts = listOf(
+            "武器(+5攻)", "头盔(+3防)", "胸甲(+4防)", "腿甲(+3防)", "靴子(+3%速)"
+        )
+        val submitted = dm.getSubmittedItems(player)
+
+        for (ri in regions.indices) {
+            val region = regions[ri]
+            val submittedSlots = totalSlots.filter { "$region:$it" in submitted }
+            val count = submittedSlots.size
+            val full = dm.isRegionFullSet(player, region)
+            val icon = ItemStack(if (full) Material.CYAN_DYE else if (count > 0) Material.LIGHT_BLUE_DYE else Material.GRAY_DYE)
+            val meta = icon.itemMeta
+            meta.displayName(Component.text("${regionNames[ri]} 提交: $count/5").decoration(TextDecoration.ITALIC, false))
+
+            val loreLines = mutableListOf<Component>()
+            if (count > 0) {
+                loreLines.add(Component.text("§a已提交：").decoration(TextDecoration.ITALIC, false))
+                for (slot in totalSlots) {
+                    val done = "$region:$slot" in submitted
+                    val marker = if (done) "  §a✔" else "  §7✘"
+                    val idx = totalSlots.indexOf(slot)
+                    loreLines.add(Component.text("$marker ${slotTexts[idx]}").decoration(TextDecoration.ITALIC, false))
+                }
+            }
+            loreLines.add(Component.text(
+                if (full) "§e全套额外：${fullBonusTexts[ri]} §a已激活"
+                else "§7全套额外：${fullBonusTexts[ri]}"
+            ).decoration(TextDecoration.ITALIC, false))
+            meta.lore(loreLines)
+            icon.itemMeta = meta
+            inv.setItem(50 + ri, icon)
+        }
     }
 }

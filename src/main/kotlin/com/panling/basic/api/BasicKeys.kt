@@ -122,6 +122,8 @@ object BasicKeys {
     val DATA_ELEMENT_POINTS = key("pl_data_element_points")
     val DATA_MONEY = key("pl_data_money")
     val DATA_QUIVER_ARROWS = key("pl_data_quiver_arrows")
+    val DATA_TRIALS_COMPLETED = key("pl_data_trials_set")
+    val DATA_SUBMITTED_ITEMS = key("pl_data_submitted")
 
     // --- 其他/杂项 Keys ---
     val ARROW_DAMAGE_STORE = key("pl_arrow_dmg_store")
