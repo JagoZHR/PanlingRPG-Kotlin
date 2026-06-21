@@ -381,7 +381,7 @@ object CombatUtil {
         val isProjectile = damager is Projectile
         return when (PanlingBasic.instance.playerDataManager.getPlayerClass(player)) {
             PlayerClass.WARRIOR -> !isProjectile   // 近战或技能，不含射箭
-            PlayerClass.ARCHER -> isProjectile      // 仅射箭命中
+            PlayerClass.ARCHER -> isProjectile || player.hasMetadata("pl_force_archer_passive")
             PlayerClass.MAGE -> isSkillDamage(player) // 仅技能伤害
             PlayerClass.NONE -> true                // 无职业兜底
         }

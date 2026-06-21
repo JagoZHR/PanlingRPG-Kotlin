@@ -15,7 +15,6 @@ import org.bukkit.Particle
 import org.bukkit.Sound
 import org.bukkit.enchantments.Enchantment
 import org.bukkit.entity.AbstractArrow
-import org.bukkit.entity.Entity
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 import org.bukkit.event.entity.EntityShootBowEvent
@@ -37,16 +36,8 @@ class RangerT6Skill(private val plugin: PanlingBasic) :
         private const val MARK_DURATION = 300 * 1000L
     }
 
-    // [修复冲突] 显式重写冲突的方法
-    override fun onProjectileHit(event: ProjectileHitEvent, ctx: SkillContext) {
-        // 你可以选择调用接口的默认实现，或者是父类的实现。
-        // 由于你的 ArcherSkillStrategy 中该方法是空的，AbstractSkill 中大概率也是空的，
-        // 这里调用哪一个都可以，或者干脆留空。
-        // 标准写法是指定调用接口的默认实现：
-        //super<ArcherSkillStrategy>.onProjectileHit(event, ctx)
-    }
+    override fun onProjectileHit(event: ProjectileHitEvent, ctx: SkillContext) {}
 
-    // [屏蔽通用判定]
     override fun onCast(ctx: SkillContext): Boolean {
         return ctx.triggerType != SkillTrigger.SHIFT_RIGHT
     }
@@ -56,26 +47,17 @@ class RangerT6Skill(private val plugin: PanlingBasic) :
 
         var isSnipe = player.isSneaking
 
-        // === 独立触发器检查 ===
         if (isSnipe) {
-            val snipeCtx = SkillContext(
-                player, null, crossbow, arrow, player.location, 0.0, SkillTrigger.SHIFT_RIGHT
-            )
-            // 此时 Key 应该是干净的
+            val snipeCtx = SkillContext(player, null, crossbow, arrow, player.location, 0.0, SkillTrigger.SHIFT_RIGHT)
             var canCastSnipe = plugin.skillManager.tryApplyCooldown(this, snipeCtx)
-
             if (canCastSnipe) {
-                if (!checkCost(snipeCtx, plugin.playerDataManager)) {
-                    canCastSnipe = false
-                } else {
+                if (!checkCost(snipeCtx, plugin.playerDataManager)) canCastSnipe = false
+                else {
                     payCost(snipeCtx, plugin.playerDataManager)
                     player.sendActionBar(Component.text("§a[战斗] 释放技能: 惊鸿掠影").color(NamedTextColor.GREEN))
                 }
             }
-
-            if (!canCastSnipe) {
-                isSnipe = false // 降级
-            }
+            if (!canCastSnipe) isSnipe = false
         }
 
         val piercingLevel = crossbow.getEnchantmentLevel(Enchantment.PIERCING)
@@ -84,119 +66,84 @@ class RangerT6Skill(private val plugin: PanlingBasic) :
 
         val phys = plugin.statCalculator.getPlayerTotalStat(player, BasicKeys.ATTR_PHYSICAL_DAMAGE)
         val rangeMult = plugin.playerDataManager.getPlayerClass(player).rangeMultiplier
-        val projectileDamage = phys * rangeMult * 2.0
+        val baseDamage = phys * rangeMult * 2.0
 
         arrow.remove()
 
         val startLoc = player.eyeLocation.subtract(0.0, 0.2, 0.0)
         val direction = startLoc.direction
 
-        if (isSnipe) {
-            player.world.playSound(startLoc, Sound.ENTITY_ENDER_DRAGON_FLAP, 1f, 1.2f)
-        } else {
-            player.world.playSound(startLoc, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1f, 1.5f)
-        }
+        if (isSnipe) player.world.playSound(startLoc, Sound.ENTITY_ENDER_DRAGON_FLAP, 1f, 1.2f)
+        else player.world.playSound(startLoc, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1f, 1.5f)
 
         val mode = if (isSnipe) 1 else 0
-        MeteorTask(player, startLoc, direction, maxHits, projectileDamage, mode).runTaskTimer(plugin, 1L, 1L)
+        MeteorTask(player, startLoc, direction, maxHits, baseDamage, mode).runTaskTimer(plugin, 1L, 1L)
 
         if (multishot) {
             val left = rotateVector(direction, 15.0)
             val right = rotateVector(direction, -15.0)
-            MeteorTask(player, startLoc, left, maxHits, projectileDamage, mode).runTaskTimer(plugin, 1L, 1L)
-            MeteorTask(player, startLoc, right, maxHits, projectileDamage, mode).runTaskTimer(plugin, 1L, 1L)
+            MeteorTask(player, startLoc, left, maxHits, baseDamage, mode).runTaskTimer(plugin, 1L, 1L)
+            MeteorTask(player, startLoc, right, maxHits, baseDamage, mode).runTaskTimer(plugin, 1L, 1L)
         }
     }
 
     private fun rotateVector(vector: Vector, angleDegrees: Double): Vector {
         val angle = Math.toRadians(angleDegrees)
-        val x = vector.x
-        val z = vector.z
-        val cos = cos(angle)
-        val sin = sin(angle)
-        return Vector(x * cos - z * sin, vector.y, x * sin + z * cos).normalize()
+        val x = vector.x; val z = vector.z
+        val c = cos(angle); val s = sin(angle)
+        return Vector(x * c - z * s, vector.y, x * s + z * c).normalize()
     }
 
-    // =========================================================
-    // [重写] 链式爆炸逻辑 (BFS + 批量结算)
-    // =========================================================
-    private fun processChainReaction(player: Player, initialTarget: LivingEntity) {
-        // 1. 初始化数据结构
-        // 待处理队列 (相当于递归栈)
-        val processingQueue = ArrayDeque<LivingEntity>()
-        // 伤害计数器: 记录每个实体被炸了多少次 <实体, 次数>
-        val damageCounts = HashMap<LivingEntity, Int>()
-        // 防止同一个标记被重复入队处理
-        val processedMarks = HashSet<Int>()
+    private fun forceDeal(shooter: Player, victim: LivingEntity, damage: Double) {
+        shooter.setMetadata("pl_force_archer_passive", FixedMetadataValue(plugin, true))
+        CombatUtil.dealPhysicalSkillDamage(shooter, victim, damage)
+        shooter.removeMetadata("pl_force_archer_passive", plugin)
+    }
 
-        // 2. 将初始目标加入队列
+    private fun processChainReaction(player: Player, initialTarget: LivingEntity) {
+        val processingQueue = ArrayDeque<LivingEntity>()
+        val damageCounts = HashMap<LivingEntity, Int>()
+        val processedMarks = HashSet<Int>()
         processingQueue.add(initialTarget)
-        // 注意：初始目标的标记在调用此方法前已经被 removeMark 了，所以不需要在这里 remove
 
         val explosionBaseDmg = plugin.statCalculator.getPlayerTotalStat(player, BasicKeys.ATTR_PHYSICAL_DAMAGE)
-        var safetyLoop = 0 // 死循环熔断
+        var safetyLoop = 0
 
-        // 3. 开始 BFS 广度搜索
         while (!processingQueue.isEmpty() && safetyLoop < 100) {
             val source = processingQueue.poll()
             val center = source.location
             safetyLoop++
 
-            // 播放爆炸特效 (每个爆炸源播放一次)
             center.world.spawnParticle(Particle.EXPLOSION, center.add(0.0, 1.0, 0.0), 1)
             center.world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 0.8f, 1.2f)
 
-            // 扫描周围受害者
             for (e in center.world.getNearbyEntities(center, 2.5, 2.5, 2.5)) {
                 if (e is LivingEntity && e != player) {
                     val victim = e
                     if (!CombatUtil.isValidTarget(player, victim)) continue
-
-                    // A. 记录伤害 (不立即造成伤害，只计数)
-                    // 使用 Kotlin 的 merge 或 getOrPut
                     damageCounts.merge(victim, 1, Integer::sum)
-
-                    // B. 链式传导判定
-                    // 只有当受害者有标记，且未被处理过时，才加入队列成为新的爆炸源
                     if (hasMark(victim) && !processedMarks.contains(victim.entityId)) {
-                        // 移除标记
                         removeMark(victim)
                         processedMarks.add(victim.entityId)
-
-                        // 视觉反馈：标记引爆
-                        try {
-                            victim.world.spawnParticle(Particle.POOF, victim.eyeLocation, 1)
-                        } catch (ignored: Exception) {}
-
-                        // 加入队列，下一轮它也会爆炸
+                        try { victim.world.spawnParticle(Particle.POOF, victim.eyeLocation, 1) } catch (_: Exception) {}
                         processingQueue.add(victim)
                     }
                 }
             }
         }
 
-        // 4. [核心] 批量结算伤害
-        // 遍历 map，一次性赋予总伤害，彻底解决无敌帧和伤害合并问题
         for ((victim, count) in damageCounts) {
             if (count > 0 && victim.isValid) {
                 val totalDamage = explosionBaseDmg * count * 5
-
-                // 强制清空无敌帧 (双重保险)
-                victim.noDamageTicks = 0
-
-                // 造成一次巨额伤害
-                CombatUtil.dealPhysicalSkillDamage(player, victim, totalDamage)
+                forceDeal(player, victim, totalDamage)
             }
         }
     }
 
-    // === 标记系统 ===
     private fun applyMark(entity: LivingEntity) {
         entity.setMetadata(META_MARK, FixedMetadataValue(plugin, System.currentTimeMillis()))
         entity.addPotionEffect(PotionEffect(PotionEffectType.GLOWING, 6000, 0, false, false))
-        try {
-            entity.world.spawnParticle(Particle.RAID_OMEN, entity.eyeLocation.add(0.0, 0.6, 0.0), 1)
-        } catch (ignored: Exception) {}
+        try { entity.world.spawnParticle(Particle.RAID_OMEN, entity.eyeLocation.add(0.0, 0.6, 0.0), 1) } catch (_: Exception) {}
     }
 
     private fun hasMark(entity: LivingEntity): Boolean {
@@ -214,7 +161,6 @@ class RangerT6Skill(private val plugin: PanlingBasic) :
         entity.removePotionEffect(PotionEffectType.GLOWING)
     }
 
-    // === MeteorTask ===
     private inner class MeteorTask(
         private val shooter: Player,
         startLoc: Location,
@@ -239,15 +185,8 @@ class RangerT6Skill(private val plugin: PanlingBasic) :
                     return
                 }
 
-                // [修复索敌 Bug]
-                if (target != null && hitEntities.contains(target!!.entityId)) {
-                    target = null
-                }
-
-                if (target != null && !CombatUtil.isValidTarget(shooter, target!!)) {
-                    target = null
-                }
-
+                if (target != null && hitEntities.contains(target!!.entityId)) target = null
+                if (target != null && !CombatUtil.isValidTarget(shooter, target!!)) target = null
                 if (target == null || target!!.isDead || !target!!.isValid || target!!.location.distanceSquared(currentLoc) > 400) {
                     target = findNearestTarget()
                 }
@@ -275,12 +214,10 @@ class RangerT6Skill(private val plugin: PanlingBasic) :
         }
 
         private fun findNearestTarget(): LivingEntity? {
-            // 使用 sequence 优化查找
             return currentLoc.world.getNearbyEntities(currentLoc, 10.0, 10.0, 10.0)
                 .asSequence()
                 .filterIsInstance<LivingEntity>()
                 .filter { it != shooter }
-                // [核心修复] 使用 CombatUtil 的统一索敌逻辑
                 .filter { CombatUtil.isValidTarget(shooter, it) }
                 .filter { !hitEntities.contains(it.entityId) }
                 .minByOrNull { it.location.distanceSquared(currentLoc) }
@@ -303,22 +240,17 @@ class RangerT6Skill(private val plugin: PanlingBasic) :
                     hitEntities.add(victim.entityId)
                     remainingHits--
 
-                    // 1. 造成流星本体伤害
-                    CombatUtil.dealPhysicalSkillDamage(shooter, victim, damage)
-
                     if (mode == 0) {
-                        // 标记模式
                         applyMark(victim)
-                        safeEffect(Particle.FIREWORK)
+                        forceDeal(shooter, victim, damage)
                         victim.world.playSound(victim.location, Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 0.6f, 2.0f)
+                        safeEffect(Particle.FIREWORK)
                     } else {
-                        // 引爆模式
                         if (hasMark(victim)) {
-                            // 移除标记，作为链式反应的起点
                             removeMark(victim)
-                            // 调用新的批量处理逻辑
                             processChainReaction(shooter, victim)
                         } else {
+                            forceDeal(shooter, victim, damage)
                             victim.world.playSound(victim.location, Sound.BLOCK_ANVIL_LAND, 0.4f, 2.0f)
                         }
                     }
@@ -333,9 +265,7 @@ class RangerT6Skill(private val plugin: PanlingBasic) :
         }
 
         private fun safeEffect(p: Particle) {
-            try {
-                currentLoc.world.spawnParticle(p, currentLoc, 2, 0.1, 0.1, 0.1, 0.05)
-            } catch (ignored: Exception) {}
+            try { currentLoc.world.spawnParticle(p, currentLoc, 2, 0.1, 0.1, 0.1, 0.05) } catch (_: Exception) {}
         }
     }
 }
