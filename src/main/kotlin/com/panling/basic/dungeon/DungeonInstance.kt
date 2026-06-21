@@ -5,6 +5,7 @@ import com.panling.basic.dungeon.phase.AbstractDungeonPhase
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Bukkit
+import org.bukkit.Chunk
 import org.bukkit.Location
 import org.bukkit.Sound
 import org.bukkit.World
@@ -45,6 +46,9 @@ class DungeonInstance(
     var tickCount: Long = 0L
         private set
 
+    // 强制加载区块，防止玩家复活时因距离远导致区块卸载怪物消失
+    private val loadedChunks = mutableSetOf<Chunk>()
+
     enum class DungeonState { LOADING, RUNNING, ENDING }
 
     lateinit var centerLocation: Location
@@ -72,6 +76,9 @@ class DungeonInstance(
 
         // 进入第一阶段
         transitionToPhase(initialPhase)
+
+        // 强制加载副本所有区块（主区域 + jitan 偏移区域）
+        lockChunks()
 
         broadcast("§a副本已启动！目标：${template.displayName}")
     }
@@ -206,9 +213,28 @@ class DungeonInstance(
     fun stop() {
         tickTask?.cancel()
         currentPhase?.end()
+        // 释放所有强加载区块
+        loadedChunks.forEach { try { it.removePluginChunkTicket(plugin) } catch (_: Exception) {} }
+        loadedChunks.clear()
         // 通知 Manager 销毁我
-        // Manager 会负责把人踢出去并回收 World
         plugin.dungeonManager.removeInstance(instanceId)
+        plugin.logger.info("[副本] $instanceId (${template.displayName}) 已关闭，区块已释放")
+    }
+
+    private fun lockChunks() {
+        // 仅支持复活的副本才需要强加载（防止玩家在玻璃笼子时区块卸载）
+        if (template.reviveCost <= 0.0) return
+        val dims = SchematicManager.getDimensions(template.schematicName)
+        val halfX = ((dims?.first ?: 500) / 16 / 2) + 3
+        val halfZ = ((dims?.third ?: 500) / 16 / 2) + 3
+        val world = centerLocation.world ?: return
+        for (dx in -halfX..halfX) {
+            for (dz in -halfZ..halfZ) {
+                val chunk = world.getChunkAt(centerLocation.chunk.x + dx, centerLocation.chunk.z + dz)
+                chunk.addPluginChunkTicket(plugin)
+                loadedChunks.add(chunk)
+            }
+        }
     }
 
     // ==========================================
