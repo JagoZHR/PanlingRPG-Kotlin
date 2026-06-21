@@ -9,9 +9,14 @@ import org.bukkit.Chunk
 import org.bukkit.Location
 import org.bukkit.Sound
 import org.bukkit.World
+import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
+import org.bukkit.event.EventHandler
+import org.bukkit.event.HandlerList
+import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.event.entity.EntityDeathEvent
+import org.bukkit.event.entity.EntityTargetEvent
 import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.scheduler.BukkitTask
 import java.util.UUID
@@ -49,6 +54,16 @@ class DungeonInstance(
     // 强制加载区块，防止玩家复活时因距离远导致区块卸载怪物消失
     private val loadedChunks = mutableSetOf<Chunk>()
 
+    // 防止副本怪物内讧
+    private val noInfightingListener = object : Listener {
+        @EventHandler
+        fun onTarget(event: EntityTargetEvent) {
+            if (event.entity.world == world && event.target !is Player) {
+                event.isCancelled = true
+            }
+        }
+    }
+
     enum class DungeonState { LOADING, RUNNING, ENDING }
 
     lateinit var centerLocation: Location
@@ -79,6 +94,9 @@ class DungeonInstance(
 
         // 强制加载副本所有区块（主区域 + jitan 偏移区域）
         lockChunks()
+
+        // 注册反内讧监听
+        Bukkit.getPluginManager().registerEvents(noInfightingListener, plugin)
 
         broadcast("§a副本已启动！目标：${template.displayName}")
     }
@@ -216,6 +234,8 @@ class DungeonInstance(
         // 释放所有强加载区块
         loadedChunks.forEach { try { it.removePluginChunkTicket(plugin) } catch (_: Exception) {} }
         loadedChunks.clear()
+        // 注销反内讧监听
+        HandlerList.unregisterAll(noInfightingListener)
         // 通知 Manager 销毁我
         plugin.dungeonManager.removeInstance(instanceId)
         plugin.logger.info("[副本] $instanceId (${template.displayName}) 已关闭，区块已释放")

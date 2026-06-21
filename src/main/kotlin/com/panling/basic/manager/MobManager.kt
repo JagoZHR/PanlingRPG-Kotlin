@@ -363,6 +363,15 @@ class MobManager(
         }
 
         triggerSkills(entity, SkillTrigger.SPAWN, null)
+
+        // 出生即锁玩家目标，防止 AI 偏好（溺尸找水、铁傀儡打亡灵等）
+        if (entity is Mob && !template.noAi) {
+            val candidates = Bukkit.getOnlinePlayers().filter { it.world == entity.world }
+            if (candidates.isNotEmpty()) {
+                entity.target = candidates.random()
+            }
+        }
+
         return entity
     }
 

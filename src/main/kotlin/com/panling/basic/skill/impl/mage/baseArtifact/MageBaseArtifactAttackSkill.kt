@@ -25,16 +25,16 @@ class MageBaseArtifactAttackSkill(private val plugin: PanlingBasic) : AbstractSk
         // 1. 杀伐模式 (OFFENSE): 群攻
         registerStrategy("OFFENSE_BROKEN_FABAO",   ArtifactAttackStrategy(2, 0.25, 4.0))
         registerStrategy("OFFENSE_COMMON_FABAO",   ArtifactAttackStrategy(3, 0.30, 5.0))
-        registerStrategy("OFFENSE_UNCOMMON_FABAO", ArtifactAttackStrategy(3, 0.35, 6.0))
-        registerStrategy("OFFENSE_RARE_FABAO",     ArtifactAttackStrategy(4, 0.40, 7.0))
-        registerStrategy("OFFENSE_EPIC_FABAO",     ArtifactAttackStrategy(5, 0.50, 8.0))
+        registerStrategy("OFFENSE_UNCOMMON_FABAO", ArtifactAttackStrategy(3, 0.35, 5.0))
+        registerStrategy("OFFENSE_RARE_FABAO",     ArtifactAttackStrategy(4, 0.40, 6.0))
+        registerStrategy("OFFENSE_EPIC_FABAO",     ArtifactAttackStrategy(4, 0.50, 6.0))
 
         // 2. 生息模式 (SUPPORT): 单体锁定
         registerStrategy("SUPPORT_BROKEN_FABAO",   ArtifactAttackStrategy(1, 0.25, 4.0))
         registerStrategy("SUPPORT_COMMON_FABAO",   ArtifactAttackStrategy(1, 0.30, 5.0))
-        registerStrategy("SUPPORT_UNCOMMON_FABAO", ArtifactAttackStrategy(1, 0.35, 6.0))
-        registerStrategy("SUPPORT_RARE_FABAO",     ArtifactAttackStrategy(1, 0.40, 7.0))
-        registerStrategy("SUPPORT_EPIC_FABAO",     ArtifactAttackStrategy(1, 0.50, 8.0))
+        registerStrategy("SUPPORT_UNCOMMON_FABAO", ArtifactAttackStrategy(1, 0.35, 5.0))
+        registerStrategy("SUPPORT_RARE_FABAO",     ArtifactAttackStrategy(1, 0.40, 6.0))
+        registerStrategy("SUPPORT_EPIC_FABAO",     ArtifactAttackStrategy(1, 0.50, 6.0))
     }
 
     private fun registerStrategy(key: String, strategy: MageSkillStrategy) {

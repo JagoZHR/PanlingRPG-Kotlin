@@ -32,8 +32,9 @@ class SummonSkill(config: ConfigurationSection) : MobSkill {
                 plugin.mobManager.spawnMob(loc, mobId)
             mob ?: return@repeat
 
-            // 召唤物不掉落任何物品（清除 MOB_ID 使其不被掉落系统识别）
+            // 召唤物不掉落任何物品
             mob.persistentDataContainer.remove(BasicKeys.MOB_ID)
+            if (mob is Mob) mob.lootTable = null
 
             // 标记为召唤物，防止递归召唤
             mob.persistentDataContainer.set(

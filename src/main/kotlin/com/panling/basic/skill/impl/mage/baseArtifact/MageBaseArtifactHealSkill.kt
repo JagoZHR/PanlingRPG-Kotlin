@@ -24,18 +24,18 @@ class MageBaseArtifactHealSkill(private val plugin: PanlingBasic) : AbstractSkil
         // 参数顺序: (最大目标数, 是否仅自己, 治疗倍率, 范围半径)
 
         // 1. 生息模式 (SUPPORT): 群体治疗
-        registerStrategy("SUPPORT_BROKEN_FABAO",   ArtifactHealStrategy(2, false, 0.15, 4.0)) // 15%倍率
-        registerStrategy("SUPPORT_COMMON_FABAO",   ArtifactHealStrategy(3, false, 0.20, 5.0)) // 20%倍率
-        registerStrategy("SUPPORT_UNCOMMON_FABAO", ArtifactHealStrategy(3, false, 0.25, 6.0)) // 25%倍率
-        registerStrategy("SUPPORT_RARE_FABAO",     ArtifactHealStrategy(4, false, 0.30, 7.0)) // 30%倍率
-        registerStrategy("SUPPORT_EPIC_FABAO",     ArtifactHealStrategy(4, false, 0.40, 8.0)) // 40%倍率
+        registerStrategy("SUPPORT_BROKEN_FABAO",   ArtifactHealStrategy(2, false, 0.10, 4.0)) // 15%倍率
+        registerStrategy("SUPPORT_COMMON_FABAO",   ArtifactHealStrategy(3, false, 0.13, 5.0)) // 20%倍率
+        registerStrategy("SUPPORT_UNCOMMON_FABAO", ArtifactHealStrategy(3, false, 0.15, 5.0)) // 25%倍率
+        registerStrategy("SUPPORT_RARE_FABAO",     ArtifactHealStrategy(4, false, 0.20, 6.0)) // 30%倍率
+        registerStrategy("SUPPORT_EPIC_FABAO",     ArtifactHealStrategy(4, false, 0.25, 6.0)) // 40%倍率
 
         // 2. 杀伐模式 (OFFENSE): 自我治疗 (数值也随之提升)
-        registerStrategy("OFFENSE_BROKEN_FABAO",   ArtifactHealStrategy(1, true, 0.15, 4.0))
-        registerStrategy("OFFENSE_COMMON_FABAO",   ArtifactHealStrategy(1, true, 0.20, 5.0))
-        registerStrategy("OFFENSE_UNCOMMON_FABAO", ArtifactHealStrategy(1, true, 0.25, 6.0))
-        registerStrategy("OFFENSE_RARE_FABAO",     ArtifactHealStrategy(1, true, 0.30, 7.0))
-        registerStrategy("OFFENSE_EPIC_FABAO",     ArtifactHealStrategy(1, true, 0.40, 8.0))
+        registerStrategy("OFFENSE_BROKEN_FABAO",   ArtifactHealStrategy(1, true, 0.1, 4.0))
+        registerStrategy("OFFENSE_COMMON_FABAO",   ArtifactHealStrategy(1, true, 0.1, 5.0))
+        registerStrategy("OFFENSE_UNCOMMON_FABAO", ArtifactHealStrategy(1, true, 0.1, 6.0))
+        registerStrategy("OFFENSE_RARE_FABAO",     ArtifactHealStrategy(1, true, 0.1, 7.0))
+        registerStrategy("OFFENSE_EPIC_FABAO",     ArtifactHealStrategy(1, true, 0.1, 8.0))
     }
 
     private fun registerStrategy(key: String, strategy: MageSkillStrategy) {
