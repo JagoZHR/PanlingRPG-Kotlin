@@ -18,6 +18,9 @@ import org.bukkit.entity.Player
 import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.event.entity.EntityDamageEvent
 import org.bukkit.event.entity.EntityTargetEvent
+import org.bukkit.event.EventHandler
+import org.bukkit.event.EventPriority
+import org.bukkit.event.Listener
 import org.bukkit.inventory.ItemStack
 import org.bukkit.metadata.FixedMetadataValue
 import org.bukkit.persistence.PersistentDataType
@@ -34,7 +37,7 @@ class SubClassManager(
     private val plugin: JavaPlugin,
     private val dataManager: PlayerDataManager,
     private val statCalculator: StatCalculator
-) {
+) : Listener {
 
     private val strategies = EnumMap<PlayerSubClass, SubClassStrategy>(PlayerSubClass::class.java)
 
@@ -61,11 +64,11 @@ class SubClassManager(
 
     init {
         // [关键] 注入 StatCalculator
-        // 假设 StatCalculator.kt 中定义了 var subClassManager: SubClassManager?
         statCalculator.subClassManager = this
 
         registerStrategies()
         startGlobalTask()
+        plugin.server.pluginManager.registerEvents(this, plugin)
     }
 
     fun getStrategy(player: Player): SubClassStrategy {
@@ -352,7 +355,8 @@ class SubClassManager(
                 if (holdSeconds < 10.0) return false
                 // 血债流血自伤不拦截
                 if (player.hasMetadata("pl_blood_debt_bleed")) return false
-                val dmg = event.finalDamage
+                // 使用 event.damage（原始伤害，不受护甲/吸收减免），让吸收盾留给流血消耗
+                val dmg = event.damage
                 if (dmg <= 0) return false
                 val maxHp = player.getAttribute(Attribute.MAX_HEALTH)?.value ?: 20.0
                 val current = bloodDebt.getOrDefault(player.uniqueId, 0.0)
@@ -492,5 +496,30 @@ class SubClassManager(
                 return originalHealth * factor
             }
         }
+    }
+
+    // 无源伤害（pl.damage()、坠落等）也走血债吸收
+    @EventHandler(priority = EventPriority.HIGH)
+    fun onNonEntityDamage(event: EntityDamageEvent) {
+        if (event is EntityDamageByEntityEvent) return // 实体攻击走 PlayerCombatListener 链路
+        val player = event.entity as? Player ?: return
+        if (event.isCancelled) return
+        if (dataManager.getPlayerSubClass(player) != PlayerSubClass.PO_JUN) return
+        val holdSec = dataManager.getSlotHoldDuration(player)
+        if (holdSec < 10.0) return
+        if (player.hasMetadata("pl_blood_debt_bleed")) return
+        val dmg = event.damage
+        if (dmg <= 0) return
+        val maxHp = player.getAttribute(Attribute.MAX_HEALTH)?.value ?: 20.0
+        val current = bloodDebt.getOrDefault(player.uniqueId, 0.0)
+        val newDebt = current + dmg
+        if (newDebt > maxHp * 1.5) {
+            bloodDebt.remove(player.uniqueId)
+            player.health = 0.0
+        } else {
+            bloodDebt[player.uniqueId] = newDebt
+        }
+        event.isCancelled = true
+        event.damage = 0.0
     }
 }
